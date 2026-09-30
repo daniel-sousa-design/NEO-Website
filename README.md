@@ -32,6 +32,30 @@ To build for a sub-path deploy (GitHub Pages and similar):
 BASE_URL=/NEO-Website/ pnpm build
 ```
 
+## Branches
+
+- **`main`** — released/stable. Don't commit here directly.
+- **`dev`** — day-to-day work. This is the branch to be on.
+
+```bash
+git switch dev
+# ...work...
+git add -A && git commit -m "..."
+git push
+```
+
+When a batch of work is ready, promote it to `main`:
+
+```bash
+git switch main
+git merge dev        # fast-forward if main hasn't moved
+git push
+git switch dev       # go back to working
+```
+
+If `main` has moved on independently, `git merge dev` creates a merge commit
+instead of fast-forwarding — that's fine and expected.
+
 ## Structure
 
 ```
