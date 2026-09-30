@@ -7,7 +7,9 @@ export function StaggeredText({ text, active, className, style }: { text: string
   return (
     <span className={className} style={{ display: 'block', ...style }}>
       {words.map((word, wi) => (
-        <span key={wi} style={{ display: 'inline-block', marginRight: '0.25em', overflow: 'hidden' }}>
+        // The mask clips each word while it rises; pad it below (and pull the
+        // layout back up) so descenders like g, p, y aren't cut off.
+        <span key={wi} style={{ display: 'inline-block', marginRight: '0.25em', overflow: 'hidden', paddingBottom: '.18em', marginBottom: '-.18em' }}>
           <span style={{
             display: 'inline-block',
             transform: active ? 'translateY(0)' : 'translateY(110%)',

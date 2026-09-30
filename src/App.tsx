@@ -1,13 +1,16 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { PAGES } from './data/pages'
 import { ease } from './lib/motion'
 import { pageFromPath, pathFor, titleFor } from './lib/routes'
 import { useSmoothScroll } from './hooks/useSmoothScroll'
+import { NavigationContext } from './lib/navigation'
 import { TransitionOverlay } from './components/TransitionOverlay'
 import { OrbitalNav, ClosingSection } from './components/OrbitalNav'
 import { EarthPage } from './pages/EarthPage'
 import { MissionsPage } from './pages/MissionsPage'
 import { SystemsPage } from './pages/SystemsPage'
+import { EngineeringPage } from './pages/EngineeringPage'
+import { AccessToSpacePage } from './pages/AccessToSpacePage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 
 // ─── App ──────────────────────────────────────────────────────────────────────
@@ -82,21 +85,26 @@ export default function App() {
   useEffect(() => { document.title = titleFor(currentPage) }, [currentPage])
 
   const page = PAGES[currentPage]
+  const nav = useMemo(() => ({ current: currentPage, navigate }), [currentPage, navigate])
 
   return (
-    <div style={{ background: '#000', minHeight: '100vh' }}>
-      <TransitionOverlay opacity={overlayOpacity} />
+    <NavigationContext.Provider value={nav}>
+      <div style={{ background: '#000', minHeight: '100vh' }}>
+        <TransitionOverlay opacity={overlayOpacity} />
 
-      {/* Opening orbital nav — scroll up at the top to orbit back */}
-      <OrbitalNav key={`open-${currentPage}`} currentPage={currentPage} onNavigate={navigate} mode="opening" />
+        {/* Opening orbital nav — scroll up at the top to orbit back */}
+        <OrbitalNav key={`open-${currentPage}`} currentPage={currentPage} onNavigate={navigate} mode="opening" />
 
-      <div key={pageKeyRef.current}>
-        {currentPage === 0 && <EarthPage />}
-        {currentPage === 1 && <MissionsPage introResetKey={introResetKey} />}
-        {currentPage === 2 && <SystemsPage introResetKey={introResetKey} />}
-        {currentPage >= 3  && <PlaceholderPage page={page} />}
-        <ClosingSection currentPage={currentPage} onNavigate={navigate} />
+        <div key={pageKeyRef.current}>
+          {currentPage === 0 && <EarthPage introResetKey={introResetKey} />}
+          {currentPage === 1 && <MissionsPage introResetKey={introResetKey} />}
+          {currentPage === 2 && <SystemsPage introResetKey={introResetKey} />}
+          {currentPage === 3 && <EngineeringPage introResetKey={introResetKey} />}
+          {currentPage === 4 && <AccessToSpacePage introResetKey={introResetKey} />}
+          {currentPage >= 5  && <PlaceholderPage page={page} />}
+          <ClosingSection currentPage={currentPage} onNavigate={navigate} />
+        </div>
       </div>
-    </div>
+    </NavigationContext.Provider>
   )
 }

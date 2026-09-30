@@ -1,8 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { A } from '../data/pages'
-import { FONT } from '../lib/fonts'
 import type { IntroPhase } from '../hooks/useIntroAnimation'
-import { TypedText } from './TypedText'
+import { PageMenu } from './PageMenu'
+import { GlassBackdrop, type GlassParams } from './GlassBackdrop'
+
+// Figma Glass panel values for the pinned bar (see GlassBackdrop for mapping).
+const NAV_GLASS: GlassParams = {
+  lightAngle: 79, lightIntensity: 20,
+  refraction: 63, depth: 34, dispersion: 53, frost: 20, splay: 100,
+}
 
 // ─── Page nav ─────────────────────────────────────────────────────────────────
 // Sits in the hero on load (spacer above it). Once scrolled up to the top of
@@ -36,6 +42,7 @@ export function PageNav({ title, introPhase }: { title: string; introPhase: Intr
 
   const logoVisible = introPhase !== 'init'
   const pillVisible = introPhase === 'pill' || introPhase === 'hero' || introPhase === 'done'
+  const isDone = introPhase === 'done'
   const lineVisible = introPhase !== 'init'
 
   return (
@@ -46,15 +53,15 @@ export function PageNav({ title, introPhase }: { title: string; introPhase: Intr
           position: isStuck ? 'fixed' : 'relative', top: 0, left: 0, right: 0, zIndex: 40,
           display: 'flex', alignItems: 'center',
           padding: '23px 20px 22px',
-          borderBottom: lineVisible ? '1px solid rgba(244,244,244,.12)' : '1px solid transparent',
-          background: isStuck ? 'rgba(0,0,0,.78)' : 'transparent',
-          backdropFilter: isStuck ? 'blur(14px)' : 'none',
-          WebkitBackdropFilter: isStuck ? 'blur(14px)' : 'none',
+          borderBottom: lineVisible && !isStuck ? '1px solid rgba(244,244,244,.12)' : '1px solid transparent',
           transform: !lineVisible ? 'translateY(12px)' : hidden ? 'translateY(-110%)' : 'translateY(0)',
           opacity: lineVisible ? 1 : 0,
-          transition: 'background .35s ease, backdrop-filter .35s ease, transform .5s cubic-bezier(.22,1,.36,1), opacity .5s cubic-bezier(.22,1,.36,1)',
+          transition: 'border-color .35s ease, transform .5s cubic-bezier(.22,1,.36,1), opacity .5s cubic-bezier(.22,1,.36,1)',
         }}
       >
+        {/* Glass backdrop — only once pinned over the page */}
+        <GlassBackdrop params={NAV_GLASS} active={isStuck} />
+
         {/* Logo — pinned left */}
         <div style={{
           height: 39, width: 57, flexShrink: 0, position: 'relative', overflow: 'hidden',
@@ -65,19 +72,8 @@ export function PageNav({ title, introPhase }: { title: string; introPhase: Intr
           <img src={`${A}/neo-logo.svg`} alt="NEO" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }} />
         </div>
 
-        {/* Pill — absolutely aligned to hero text left edge */}
-        <div style={{
-          position: 'absolute', left: 'calc(20% + 58px)',
-          background: 'rgba(244,244,244,.2)', borderRadius: 6, padding: '10px 12px',
-          maxWidth: pillVisible ? 200 : 0,
-          overflow: 'hidden',
-          opacity: pillVisible ? 1 : 0,
-          transition: 'max-width .55s cubic-bezier(.22,1,.36,1), opacity .3s ease',
-        }}>
-          <span style={{ fontFamily: FONT.mono, fontSize: 12, color: '#fff', lineHeight: 1.5, whiteSpace: 'nowrap' }}>
-            <TypedText text={title} active={pillVisible} />
-          </span>
-        </div>
+        {/* Page pill — aligned to the hero text's left edge; expands into all pages on hover */}
+        <PageMenu title={title} visible={pillVisible} interactive={isDone} />
       </div>
     </div>
   )

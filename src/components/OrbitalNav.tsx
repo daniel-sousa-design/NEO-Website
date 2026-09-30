@@ -30,9 +30,11 @@ import { RevealText } from './RevealText'
 //   Cards tilt in 3D toward the pointer on hover, easing back on leave.
 
 const CLOSING_TITLES: Record<number, string> = {
-  0: 'Everything we build points back to Earth.',
+  0: 'Earth Is the Future We Need to See, Now',
   1: 'Earth Is Our Foremost Mission',
   2: 'Whichever level you choose, it runs on the same two systems.',
+  3: 'Building and Running Them Takes Engineering at Every Stage',
+  4: 'None of It Happens Alone',
 }
 function closingTitle(page: number) {
   return CLOSING_TITLES[page] ?? `${PAGES[page].title} is only the beginning.`
