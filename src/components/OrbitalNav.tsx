@@ -12,7 +12,8 @@ import { RevealText } from './RevealText'
 //   closing — full-viewport section at the bottom of every page: closing title
 //             top-left (36pt), the card ladder in the centre, credits + buttons
 //             pinned at the bottom. Scroll DOWN orbits toward the next pages
-//             (cards travel right→left), clamped at the last page.
+//             (cards travel right→left), clamped at the last page — except
+//             that the last page (Insights) carries on round to 01 Earth.
 //   opening — the same ladder mirrored, as a fixed overlay summoned by scrolling
 //             UP at the very top of a page. Scroll UP orbits back through the
 //             previous pages (cards travel left→right), clamped at the first page.
@@ -34,7 +35,9 @@ const CLOSING_TITLES: Record<number, string> = {
   1: 'Earth Is Our Foremost Mission',
   2: 'Whichever level you choose, it runs on the same two systems.',
   3: 'Building and Running Them Takes Engineering at Every Stage',
-  4: 'None of It Happens Alone',
+  4: 'That Same Engineering Reaches Beyond the Satellite',
+  5: 'None of It Happens Alone',
+  6: 'Together, That Capability Produces Something Solid',
 }
 function closingTitle(page: number) {
   return CLOSING_TITLES[page] ?? `${PAGES[page].title} is only the beginning.`
@@ -77,7 +80,10 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
   const ref = useRef<HTMLElement>(null)
   const centerElRef = useRef<HTMLButtonElement | null>(null)
   const L = PAGES.length
-  const maxStep = rev ? currentPage : L - 1 - currentPage   // clamped — no loop
+  // Clamped — no loop — except that the last page's closing nav carries on
+  // round to 01 Earth, one step past it.
+  const wrap = !rev && currentPage === L - 1
+  const maxStep = rev ? currentPage : wrap ? 1 : L - 1 - currentPage
 
   const [open, setOpen] = useState(!rev)           // opening overlay summoned?
   const [step, setStep] = useState(0)              // orbit offset from currentPage (0..maxStep)
@@ -163,7 +169,8 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
   const gateRef = useRef(true)
   const lastWheelRef = useRef(0)
 
-  const centeredIdx = currentPage + dir * step
+  const centeredPos = currentPage + dir * step    // position along the ladder (L = Earth again, when wrapping)
+  const centeredIdx = centeredPos % L
 
   const pointerOnCenter = () => {
     const el = centerElRef.current
@@ -307,8 +314,9 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
   // Window of pages currently on stage: offsets -3..+2 → slots -1..4.
   // Opening mode walks the sitemap backwards and mirrors the ladder horizontally.
   const cards = [-3, -2, -1, 0, 1, 2]
-    .map(off => ({ slot: off + 2, idx: centeredIdx + dir * off }))
-    .filter(c => c.idx >= 0 && c.idx < L)
+    .map(off => ({ slot: off + 2, pos: centeredPos + dir * off }))
+    .filter(c => c.pos >= 0 && c.pos < L + (wrap ? 1 : 0))
+    .map(c => ({ slot: c.slot, idx: c.pos % L }))
 
   // Page-load progress: the centre tile expands and the section floods blue in
   // lock-step with the ring cursor filling (commitP).

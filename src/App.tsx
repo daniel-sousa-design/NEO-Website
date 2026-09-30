@@ -11,7 +11,8 @@ import { MissionsPage } from './pages/MissionsPage'
 import { SystemsPage } from './pages/SystemsPage'
 import { EngineeringPage } from './pages/EngineeringPage'
 import { AccessToSpacePage } from './pages/AccessToSpacePage'
-import { PlaceholderPage } from './pages/PlaceholderPage'
+import { EcosystemPage } from './pages/EcosystemPage'
+import { InsightsPage } from './pages/InsightsPage'
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
@@ -84,7 +85,6 @@ export default function App() {
 
   useEffect(() => { document.title = titleFor(currentPage) }, [currentPage])
 
-  const page = PAGES[currentPage]
   const nav = useMemo(() => ({ current: currentPage, navigate }), [currentPage, navigate])
 
   return (
@@ -101,7 +101,8 @@ export default function App() {
           {currentPage === 2 && <SystemsPage introResetKey={introResetKey} />}
           {currentPage === 3 && <EngineeringPage introResetKey={introResetKey} />}
           {currentPage === 4 && <AccessToSpacePage introResetKey={introResetKey} />}
-          {currentPage >= 5  && <PlaceholderPage page={page} />}
+          {currentPage === 5 && <EcosystemPage introResetKey={introResetKey} />}
+          {currentPage === 6 && <InsightsPage introResetKey={introResetKey} />}
           <ClosingSection currentPage={currentPage} onNavigate={navigate} />
         </div>
       </div>
