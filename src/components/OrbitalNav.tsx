@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, type MouseEvent as ReactMouseEvent } from 'react'
 import { PAGES, SEL } from '../data/pages'
 import { FONT } from '../lib/fonts'
 import { lerp, ease } from '../lib/motion'
+import { isScrollLocked } from '../lib/scroll'
 import { RingCursor } from './RingCursor'
+import { RevealText } from './RevealText'
 
 // ─── Orbital nav (closing = forward, opening = reverse) ───────────────────────
 // One component drives both orbital navs:
@@ -29,8 +31,8 @@ import { RingCursor } from './RingCursor'
 
 const CLOSING_TITLES: Record<number, string> = {
   0: 'Everything we build points back to Earth.',
-  1: 'Whichever level you choose, it runs on the same two systems.',
-  2: 'Two systems. Every mission NEO flies.',
+  1: 'Earth Is Our Foremost Mission',
+  2: 'Whichever level you choose, it runs on the same two systems.',
 }
 function closingTitle(page: number) {
   return CLOSING_TITLES[page] ?? `${PAGES[page].title} is only the beginning.`
@@ -52,6 +54,18 @@ const SLOT: Record<number, Slot> = {
 const NOTCH        = 90    // wheel units per orbit step
 const COMMIT_TOTAL = 820   // wheel units to fill the loader and load the page
 const STEP_LOCK_MS = 560   // lock while a pop-into-place settles
+const ARRIVE_SLOTS = 2     // closing: cards start this many slots further along the orbit…
+const ARRIVE_MS    = 1800  // …and ease back into place when the section comes into view
+const ARRIVE_DELAY = 300   // ms pause after the section enters view before they move
+const ARRIVE_EASE  = 'cubic-bezier(.19,1,.22,1)'  // expo ease-out: long, soft settle
+const ARRIVE_TITLE_AT = .12  // title starts revealing this far into the arrival sweep
+const GATE_GAP_MS  = 350   // pause in wheel input needed before a reached orbit nav responds
+const FLOOD_REST   = 0.3   // closing section's blue flood at rest, as a fraction of the full page-load flood
+const HINT_SHOW_MS = 2000  // cursor hint stays up this long…
+const HINT_IDLE_MS = 5000  // …and comes back after this long without input
+const HINT_OFFSET_X = 30   // label's left edge from the pointer: half the 40px ring + 10px
+const HINT_FOLLOW  = 9     // how fast the label catches up with the pointer (lower = more drag)
+const HINT_WORD_STAGGER = .09  // s between each word of the label entering / leaving
 
 export function OrbitalNav({ currentPage, onNavigate, mode }: {
   currentPage: number; onNavigate: (id: number) => void; mode: 'closing' | 'opening'
@@ -67,7 +81,8 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
   const [step, setStep] = useState(0)              // orbit offset from currentPage (0..maxStep)
   const [commitP, setCommitP] = useState(0)        // 0→1 loader fill on the centre card
   const [loading, setLoading] = useState(false)    // centre tile expanding → navigate
-  const [cursor, setCursor] = useState<{ x: number; y: number; on: boolean }>({ x: 0, y: 0, on: false })
+  // `native`: pointer is over a control that keeps the system cursor (footer buttons).
+  const [cursor, setCursor] = useState<{ x: number; y: number; on: boolean; native?: boolean }>({ x: 0, y: 0, on: false })
   const [overCenter, setOverCenter] = useState(false)
   const [tilt, setTilt] = useState<{ id: number; rx: number; ry: number } | null>(null)
 
@@ -76,9 +91,27 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
   const lockRef   = useRef(false)
   const posRef    = useRef({ x: 0, y: 0 })
 
+  // Cursor hint ("Scroll to orbit" / "Scroll to load"): flashes for
+  // HINT_SHOW_MS when the ring appears or changes meaning, and again after
+  // HINT_IDLE_MS without mouse or wheel input. 'idle' = never shown since the
+  // ring appeared (stays invisible without playing the exit animation).
+  const [hint, setHint] = useState<'idle' | 'in' | 'out'>('idle')
+  const hintHideT = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const hintIdleT = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const showHint = useCallback(() => {
+    setHint('in')
+    clearTimeout(hintHideT.current)
+    hintHideT.current = setTimeout(() => setHint('out'), HINT_SHOW_MS)
+  }, [])
+  const bumpActivity = useCallback(() => {
+    clearTimeout(hintIdleT.current)
+    hintIdleT.current = setTimeout(showHint, HINT_IDLE_MS)
+  }, [showHint])
+  useEffect(() => () => { clearTimeout(hintHideT.current); clearTimeout(hintIdleT.current) }, [])
+
   useEffect(() => {
     setOpen(!rev); setStep(0); setCommitP(0); setLoading(false); setOverCenter(false)
-    notchAcc.current = 0; commitAcc.current = 0; lockRef.current = false
+    notchAcc.current = 0; commitAcc.current = 0; lockRef.current = false; gateRef.current = true
   }, [currentPage, rev])
 
   // Track the pointer globally so the overlay knows where it is the moment it opens.
@@ -87,6 +120,46 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
     window.addEventListener('mousemove', onMoveWin, { passive: true })
     return () => window.removeEventListener('mousemove', onMoveWin)
   }, [])
+
+  // Arrival: the ladder isn't on stage until the nav is reached, then orbits
+  // into place (closing: when the section scrolls into view, leaving it
+  // entirely resets so the arrival replays; opening: each time the overlay opens).
+  const [arrived, setArrived] = useState(false)
+  const [arriving, setArriving] = useState(false)
+  const [titleHeld, setTitleHeld] = useState(false)   // title waits for mid-arrival
+  const titleT = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const arrivedRef  = useRef(false)
+  const arrivingRef = useRef(false)
+  const arriveT = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const startArrival = useCallback(() => {
+    arrivingRef.current = true; setArriving(true)
+    clearTimeout(arriveT.current)
+    arriveT.current = setTimeout(() => { arrivingRef.current = false; setArriving(false) }, ARRIVE_DELAY + ARRIVE_MS + 100)
+    setTitleHeld(true)
+    clearTimeout(titleT.current)
+    titleT.current = setTimeout(() => setTitleHeld(false), ARRIVE_DELAY + ARRIVE_MS * ARRIVE_TITLE_AT)
+  }, [])
+  useEffect(() => () => { clearTimeout(arriveT.current); clearTimeout(titleT.current) }, [])
+  useEffect(() => {
+    if (rev || !ref.current) return
+    const io = new IntersectionObserver(([e]) => {
+      if (e.intersectionRatio >= .45 && !arrivedRef.current) {
+        arrivedRef.current = true; setArrived(true); startArrival()
+      } else if (!e.isIntersecting && arrivedRef.current) {
+        arrivedRef.current = false; setArrived(false)
+      }
+    }, { threshold: [0, .45] })
+    io.observe(ref.current)
+    return () => io.disconnect()
+  }, [rev, startArrival])
+  const onStage = rev ? open : arrived
+
+  // Scroll gate: a gesture that carries the page into the nav (a big fling,
+  // trackpad momentum) must not also orbit or load a page. Once reached, the
+  // nav ignores "advance" input until the arrival has settled and the wheel
+  // has paused for GATE_GAP_MS. Scrolling back out is never gated.
+  const gateRef = useRef(true)
+  const lastWheelRef = useRef(0)
 
   const centeredIdx = currentPage + dir * step
 
@@ -108,6 +181,10 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
   useEffect(() => {
     if (rev && currentPage === 0) return        // nothing behind the first page
     const onWheel = (e: WheelEvent) => {
+      bumpActivity()
+      // Page intro running: swallow the gesture so scrolling up can't open the
+      // overlay while scrolling down is locked.
+      if (isScrollLocked()) { e.preventDefault(); return }
       // Normalise so d > 0 always means "advance the orbit".
       const d = rev ? -e.deltaY : e.deltaY
       let engaged: boolean
@@ -119,6 +196,16 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
       }
       if (loading) { if (engaged) e.preventDefault(); return }
 
+      const now = performance.now()
+      const gap = now - lastWheelRef.current
+      lastWheelRef.current = now
+      if (!engaged) gateRef.current = true
+      else if (d > 0 && (gateRef.current || arrivingRef.current)) {
+        e.preventDefault()
+        if (!arrivingRef.current && gap > GATE_GAP_MS) gateRef.current = false   // fresh gesture: let it through
+        else return
+      }
+
       if (d > 0) {
         if (!engaged) return
         e.preventDefault()
@@ -127,6 +214,7 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
           notchAcc.current += d
           if (notchAcc.current >= NOTCH) {
             notchAcc.current = 0; lockRef.current = true; setOpen(true)
+            gateRef.current = true; startArrival()
             setTimeout(() => { lockRef.current = false }, STEP_LOCK_MS)
           }
           return
@@ -171,13 +259,44 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
     }
     window.addEventListener('wheel', onWheel, { passive: false })
     return () => window.removeEventListener('wheel', onWheel)
-  }, [rev, open, currentPage, step, maxStep, centeredIdx, loading, onNavigate])
+  }, [rev, open, currentPage, step, maxStep, centeredIdx, loading, onNavigate, bumpActivity, startArrival])
 
   const onMove = (e: ReactMouseEvent) => {
     posRef.current = { x: e.clientX, y: e.clientY }
-    setCursor({ x: e.clientX, y: e.clientY, on: true })
+    bumpActivity()
+    setCursor({ x: e.clientX, y: e.clientY, on: true, native: !!(e.target as Element).closest('[data-native-cursor]') })
     setOverCenter(pointerOnCenter())
   }
+
+  const loadMode = overCenter && centeredIdx !== currentPage
+  const ringShown = cursor.on && !cursor.native && open && !loading
+  // Layout effect: the label must switch state before paint, or a remounted
+  // label would flash one frame of its exit animation.
+  useLayoutEffect(() => {
+    if (ringShown) showHint()
+    else { clearTimeout(hintHideT.current); setHint('idle') }
+  }, [ringShown, loadMode, showHint])
+
+  // The label trails the pointer (eased toward it every frame) instead of
+  // being locked to it. Written straight to the DOM: no re-render per frame.
+  const hintRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    if (!ringShown) return
+    const target = () => ({ x: posRef.current.x + HINT_OFFSET_X, y: posRef.current.y })
+    let { x, y } = target()
+    let last = performance.now()
+    let raf = 0
+    const tick = (t: number) => {
+      const k = 1 - Math.exp(-HINT_FOLLOW * Math.max(0, Math.min(.05, (t - last) / 1000)))
+      last = t
+      const to = target()
+      x += (to.x - x) * k; y += (to.y - y) * k
+      if (hintRef.current) hintRef.current.style.transform = `translate3d(${x}px, ${y}px, 0)`
+      raf = requestAnimationFrame(tick)
+    }
+    tick(last)
+    return () => cancelAnimationFrame(raf)
+  }, [ringShown])
 
   if (rev && currentPage === 0) return null
 
@@ -194,9 +313,12 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
   const load = loading ? 1 : commitP
   const eLoad = ease(load)
   const lead  = ease(Math.min(1, load * 1.25))   // leading edge of the expansion
+  // The closing flood rests part-way risen, then grows from there as the page loads.
+  const flood = rev ? eLoad : lerp(FLOOD_REST, 1, eLoad)
 
   return (
     <section ref={ref}
+      data-hides-page-nav={rev ? undefined : ''}
       onMouseMove={onMove}
       onMouseLeave={() => setCursor(c => ({ ...c, on: false }))}
       style={{
@@ -209,29 +331,33 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
       {/* Blue flood — rises (closing) or falls (opening) as the centre tile loads */}
       <div style={{
         position: 'absolute', inset: 0, pointerEvents: 'none',
-        background: `radial-gradient(ellipse 115% 72% at 50% ${rev ? lerp(-18, 48, eLoad) : lerp(118, 52, eLoad)}%, rgba(${SEL},${lerp(0.2, 0.96, eLoad)}) 0%, transparent ${lerp(64, 96, eLoad)}%)`,
+        background: `radial-gradient(ellipse 115% 72% at 50% ${rev ? lerp(-18, 48, flood) : lerp(118, 52, flood)}%, rgba(${SEL},${lerp(0.2, 0.96, flood)}) 0%, transparent ${lerp(64, 96, flood)}%)`,
       }} />
 
       {/* Title — closing sits top-left, opening mirrors to bottom-left */}
-      <h2 style={{
-        position: 'absolute', left: 40, margin: 0, zIndex: 4, ...(rev ? { bottom: 40 } : { top: 40 }),
-        fontFamily: FONT.sans, fontWeight: 400, fontSize: 36, lineHeight: 1.15, letterSpacing: '-0.72px',
-        color: '#fff', maxWidth: 460, opacity: 1 - Math.min(1, load * 2), transition: 'opacity .2s ease',
-      }}>
-        {rev ? openingTitle(centeredIdx, currentPage) : closingTitle(centeredIdx)}
-      </h2>
+      {/* Keyed by the centred page, so each orbit step replays the reveal.
+          Held back until the cards are partway through orbiting into place. */}
+      <RevealText as="h2" key={centeredIdx} ready={onStage && !titleHeld}
+        text={rev ? openingTitle(centeredIdx, currentPage) : closingTitle(centeredIdx)}
+        style={{
+          position: 'absolute', left: 40, margin: 0, zIndex: 4, ...(rev ? { bottom: 40 } : { top: 40 }),
+          fontFamily: FONT.sans, fontWeight: 400, fontSize: 36, lineHeight: 1.15, letterSpacing: '-0.72px',
+          color: '#fff', maxWidth: 460, opacity: 1 - Math.min(1, load * 2), transition: 'opacity .2s ease',
+        }} />
 
       {/* Orbital carousel */}
       <div style={{ position: 'absolute', inset: 0 }}>
         {cards.map(({ slot, idx }) => {
           const page = PAGES[idx]
-          const s = SLOT[slot]
+          // Before arriving, draw the card further along the orbit (hidden).
+          const vslot = onStage ? slot : Math.min(4, slot + ARRIVE_SLOTS)
+          const s = SLOT[vslot]
           const cx = rev ? 100 - s.cx : s.cx
           const isCenter = slot === 2
           const blue = isCenter ? 1 : 0
 
           let rectL = cx - s.w / 2, rectT = s.cy - s.h / 2, rectW = s.w, rectH = s.h, radius = 20
-          let op = open ? s.op : 0
+          let op = onStage ? s.op : 0
           if (isCenter && load > 0) {
             // Closing expands toward the top, opening toward the bottom.
             rectL = lerp(cx - s.w / 2, 0, eLoad)
@@ -246,7 +372,7 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
           // 3D perspective: every card (centre included) rests with a gentle fan
           // (mirrored in opening mode), and tilts toward the pointer on hover.
           let rx = 0
-          let ry = (2 - slot) * 8 * dir
+          let ry = (2 - vslot) * 8 * dir
           if (tilt && tilt.id === page.id && !loading) { rx = tilt.rx; ry = tilt.ry }
           if (isCenter && load > 0) { rx = lerp(rx, 0, eLoad); ry = lerp(ry, 0, eLoad) }
 
@@ -275,8 +401,12 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
                 opacity: op, overflow: 'hidden', padding: 0, textAlign: 'left',
                 transformStyle: 'preserve-3d',
                 transform: `perspective(1000px) rotateX(${rx}deg) rotateY(${ry}deg)`,
-                cursor: clickable ? 'none' : 'default', zIndex: isCenter ? 3 : 1,
-                transition: [
+                cursor: loading ? 'default' : 'none', zIndex: isCenter ? 3 : 1,
+                transition: arriving ? [
+                  // Arrival: one slow sweep with a long ease-out, no springy overshoot.
+                  ...['left', 'top', 'width', 'height', 'transform'].map(prop => `${prop} ${ARRIVE_MS}ms ${ARRIVE_EASE} ${ARRIVE_DELAY}ms`),
+                  `opacity ${ARRIVE_MS * .5}ms ease-out ${ARRIVE_DELAY}ms`,
+                ].join(', ') : [
                   'left .56s cubic-bezier(.34,1.4,.5,1)',
                   'top .56s cubic-bezier(.34,1.4,.5,1)',
                   'width .56s cubic-bezier(.34,1.4,.5,1)',
@@ -287,22 +417,11 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
                   `opacity .4s ease ${rev && open && load === 0 ? (4 - slot) * 0.06 : 0}s`,
                 ].join(', '),
               }}>
-              <span style={{ position: 'absolute', top: 14, left: 20, fontFamily: FONT.sans, fontSize: s.font, color: `rgb(${g},${g},${g})`, letterSpacing: '-1px', lineHeight: 1.1, opacity: labelOp, transition: 'font-size .56s cubic-bezier(.34,1.4,.5,1), color .45s ease, opacity .3s ease' }}>{num(idx)}</span>
-              <span style={{ position: 'absolute', bottom: 14, left: 20, fontFamily: FONT.sans, fontSize: s.font, color: `rgb(${g},${g},${g})`, letterSpacing: '-1px', lineHeight: 1.1, whiteSpace: 'nowrap', opacity: labelOp, transition: 'font-size .56s cubic-bezier(.34,1.4,.5,1), color .45s ease, opacity .3s ease' }}>{page.title}</span>
+              <span style={{ position: 'absolute', top: 14, left: 20, fontFamily: FONT.sans, fontSize: s.font, color: `rgb(${g},${g},${g})`, letterSpacing: '-1px', lineHeight: 1.1, opacity: labelOp, transition: `font-size ${arriving ? `${ARRIVE_MS}ms ${ARRIVE_EASE} ${ARRIVE_DELAY}ms` : '.56s cubic-bezier(.34,1.4,.5,1)'}, color .45s ease, opacity .3s ease` }}>{num(idx)}</span>
+              <span style={{ position: 'absolute', bottom: 14, left: 20, fontFamily: FONT.sans, fontSize: s.font, color: `rgb(${g},${g},${g})`, letterSpacing: '-1px', lineHeight: 1.1, whiteSpace: 'nowrap', opacity: labelOp, transition: `font-size ${arriving ? `${ARRIVE_MS}ms ${ARRIVE_EASE} ${ARRIVE_DELAY}ms` : '.56s cubic-bezier(.34,1.4,.5,1)'}, color .45s ease, opacity .3s ease` }}>{page.title}</span>
             </button>
           )
         })}
-      </div>
-
-      {/* Scroll hint */}
-      <div style={{
-        position: 'absolute', left: '50%', transform: 'translateX(-50%)', zIndex: 4, ...(rev ? { top: 40 } : { bottom: 84 }),
-        fontFamily: FONT.mono, fontSize: 10, letterSpacing: '.15em', textTransform: 'uppercase',
-        color: `rgba(${SEL},.55)`, opacity: loading ? 0 : 0.7, transition: 'opacity .3s ease',
-      }}>
-        {rev
-          ? (step === 0 ? 'Scroll up to orbit back · down to close' : 'Scroll up on the centre to return · elsewhere to keep orbiting')
-          : (step === 0 ? 'Scroll to orbit the next pages' : 'Scroll on the centre to enter · elsewhere to keep orbiting')}
       </div>
 
       {/* Footer — credits + buttons (closing only) */}
@@ -315,7 +434,7 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
           <p style={{ margin: 0, fontFamily: FONT.mono, fontSize: 9, letterSpacing: '.36px', textTransform: 'uppercase', color: '#7a7a7a', maxWidth: 188, lineHeight: 1 }}>
             © 2026 NEO. All rights reserved
           </p>
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div data-native-cursor style={{ display: 'flex', gap: 10 }}>
             {['Company', 'Careers', 'Contact'].map(label => (
               <button key={label} style={{
                 height: 30, padding: '0 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
@@ -329,9 +448,32 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
       )}
 
       {/* Custom ring cursor */}
-      {cursor.on && open && !loading && (
+      {ringShown && (
         <div style={{ position: 'fixed', left: cursor.x, top: cursor.y, transform: 'translate(-50%,-50%)', zIndex: 90, pointerEvents: 'none' }}>
-          <RingCursor variant={overCenter && centeredIdx !== currentPage ? 'outline' : 'filled'} fill={commitP} />
+          <RingCursor variant={loadMode ? 'outline' : 'filled'} fill={commitP} />
+        </div>
+      )}
+
+      {/* Cursor hint: 10px right of the ring, vertically centred, trailing the pointer.
+          Keyed by its text so a switch between orbit/load replays the entrance. */}
+      {ringShown && (
+        <div ref={hintRef} style={{ position: 'fixed', left: 0, top: 0, zIndex: 90, pointerEvents: 'none' }}>
+          <span key={loadMode ? 'load' : 'orbit'} style={{
+            position: 'absolute', left: 0, top: 0, transform: 'translateY(-50%)', whiteSpace: 'nowrap',
+            fontFamily: FONT.mono, fontSize: 10, letterSpacing: '.15em', textTransform: 'uppercase', lineHeight: 1,
+            color: '#fff',
+          }}>
+            {/* Each word enters and leaves on its own, left to right */}
+            {(loadMode ? 'Scroll to load' : 'Scroll to orbit').split(' ').map((word, i) => (
+              <span key={i}>
+                {i > 0 && ' '}
+                <span className={hint === 'idle' ? undefined : `neo-hint-${hint}`}
+                  style={{ display: 'inline-block', opacity: 0, animationDelay: `${i * HINT_WORD_STAGGER}s` }}>
+                  {word}
+                </span>
+              </span>
+            ))}
+          </span>
         </div>
       )}
     </section>

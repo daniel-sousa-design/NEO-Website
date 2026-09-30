@@ -1,126 +1,127 @@
-import { A } from '../data/pages'
+import { useState } from 'react'
+import { A, BLUE } from '../data/pages'
 import { FONT } from '../lib/fonts'
-import { useIntroAnimation } from '../hooks/useIntroAnimation'
-import { PageNav } from '../components/PageNav'
-import { StaggeredText } from '../components/StaggeredText'
+import { PageHero } from '../components/PageHero'
+import { RevealText } from '../components/RevealText'
+import { LoopVideo } from '../components/LoopVideo'
+
+// Page grid: 20px side margins, 10 columns, 10px gutters. Single column on mobile.
+const GRID = 'grid grid-cols-1 md:grid-cols-10 gap-x-[10px] gap-y-12 px-5 items-center'
+
+// Square media box shared by the problem player and the mission graphic.
+const BOX = 'aspect-square w-full md:w-[min(100%,43.06vw)]'
+
+const PROBLEMS = [
+  'Identifying vessels in restricted waters.',
+  'Mapping disasters as they unfold.',
+  'Watching ports and industrial corridors that go unmonitored for days at a time.',
+  'Protecting the infrastructure that data and finance depend on.',
+  'Tracking change at facilities and along borders before it becomes public.',
+  'Problem 06 copy to come.', // TODO: real copy for the sixth problem
+]
+
+// Stand-ins for each problem's video.
+const DISPLAY_GREYS = ['#3a3a3a', '#4a4a4a', '#333333', '#555555', '#2e2e2e', '#444444']
+
+const TIERS = [
+  { title: 'The Satellite', img: null, video: `${A}/video/neo-sat-dolly-01.mp4`, desc: 'A VHR optical multispectral satellite, delivered as a standalone product.' },
+  { title: 'The Ground Segment - ORBI', img: null, desc: 'The software to plan, command, monitor, and process data for satellites you already operate.' },
+  { title: 'The Satellite + Ground Segment', img: `${A}/7aa13.png`, desc: "The satellite paired with ORBI, NEO's Ground Segment." },
+  { title: 'The Complete Mission', img: null, desc: 'Everything, plus mission design, launch, licensing, commissioning and ongoing operation.' },
+]
+
+const pad = (i: number) => String(i + 1).padStart(2, '0')
 
 // ─── Page: Missions ───────────────────────────────────────────────────────────
 
 export function MissionsPage({ introResetKey }: { introResetKey: number }) {
-  const phase = useIntroAnimation(introResetKey)
-  const heroActive = phase === 'hero' || phase === 'done'
+  const [selected, setSelected] = useState(0)
 
   return (
     <div style={{ background: '#000' }}>
-      {/* Hero: spacer pushes nav to ~48vh, nav sticky inside, text below */}
-      <div style={{ position: 'relative', minHeight: '100vh' }}>
-        {/* Full-hero background gradient */}
-        <div style={{
-          position: 'absolute', inset: 0, zIndex: 0,
-          backgroundImage: `url("data:image/svg+xml;utf8,<svg viewBox='0 0 1440 1024' xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none'><rect x='0' y='0' height='100%' width='100%' fill='url(%23grad)'/><defs><radialGradient id='grad' gradientUnits='userSpaceOnUse' cx='0' cy='0' r='10' gradientTransform='matrix(-5.9323e-14 -147.75 324.38 -2.6743e-12 720 1078)'><stop stop-color='rgba(85,166,255,0)' offset='0.37946'/><stop stop-color='rgba(85,166,255,1)' offset='0.76846'/></radialGradient></defs></svg>")`,
-        }} />
-
-        {/* Spacer — positions nav at ~25vh (halfway between top and center) */}
-        <div style={{ height: 'calc(25vh - 42px)', position: 'relative', zIndex: 1 }} />
-
-        {/* Nav lives here in document flow */}
-        <div style={{ position: 'relative', zIndex: 2 }}>
-          <PageNav title="Missions" introPhase={phase} />
-        </div>
-
-        {/* Hero text below the nav */}
-        <div style={{ position: 'relative', zIndex: 1, paddingTop: '10vh', paddingLeft: 'calc(20% + 58px)', paddingBottom: '10vh' }}>
-          <StaggeredText
-            text="We want space to work for earth."
-            active={heroActive}
-            style={{ fontFamily: FONT.sans, fontWeight: 400, fontSize: 'clamp(3rem,6.25vw,90px)', color: '#fff', lineHeight: 1.05, letterSpacing: '-1.8px', maxWidth: 853, margin: 0 }}
-          />
-          <p style={{
-            fontFamily: FONT.mono, fontWeight: 400, fontSize: 12, color: '#fff', lineHeight: 1.3, marginTop: 32, maxWidth: 277,
-            opacity: heroActive ? 1 : 0, transform: heroActive ? 'translateY(0)' : 'translateY(10px)',
-            transition: 'opacity .6s .55s ease, transform .7s .55s cubic-bezier(.22,1,.36,1)',
-          }}>
-            NEO's satellites and ground systems already do this work.
-          </p>
-        </div>
-      </div>
+      <PageHero title="Missions" introResetKey={introResetKey}
+        headline="We want space to work for earth."
+        sub="NEO's satellites and ground systems already do this work." />
 
       {/* Six problems */}
       <section style={{ padding: '120px 20px', textAlign: 'center' }}>
-        <h2 style={{ fontFamily: FONT.medium, fontWeight: 500, fontSize: 'clamp(2rem,5vw,72px)', color: '#fff', letterSpacing: '-1.44px', lineHeight: 1.1, margin: '0 0 80px' }}>
-          Six different problems.<br />One underlying capability.
-        </h2>
-        <div style={{ display: 'flex', gap: 25, alignItems: 'center', justifyContent: 'center' }}>
-          {[true, false, false, false, false, false].map((active, i) => (
-            <div key={i} style={{
-              width: 80, height: 80, borderRadius: 10, flexShrink: 0, position: 'relative', overflow: 'hidden',
-              border: active ? '1px solid #55a6ff' : '1px solid rgba(217,217,217,.2)', background: active ? undefined : '#222',
-            }}>
-              {active && <img src={`${A}/a34de.png`} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', mixBlendMode: 'luminosity' }} />}
-            </div>
-          ))}
+        <RevealText as="h2" text={'Six different problems.\nOne underlying capability.'}
+          style={{ fontFamily: FONT.sans, fontWeight: 400, fontSize: 'clamp(2rem,5vw,72px)', color: '#fff', letterSpacing: '-1.44px', lineHeight: 1.1, margin: '0 0 80px' }} />
+        <div role="group" aria-label="Problems" style={{ display: 'flex', flexWrap: 'wrap', gap: 'clamp(10px, 2.5vw, 22px)', justifyContent: 'center' }}>
+          {PROBLEMS.map((text, i) => {
+            const active = i === selected
+            return (
+              <button key={i} type="button" onClick={() => setSelected(i)} aria-pressed={active} aria-label={`${pad(i)} ${text}`}
+                className="focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-neo-blue"
+                style={{
+                  width: 'min(72px, 12.5vw)', aspectRatio: '1', borderRadius: 10, flexShrink: 0, position: 'relative', overflow: 'hidden', cursor: 'pointer', padding: 0,
+                  background: '#222', border: `1px solid ${active ? 'transparent' : 'rgba(217,217,217,.2)'}`,
+                  transition: 'border-color .3s ease',
+                }}>
+                {/* Future: image or icon masked by this square */}
+                {active && <span className="neo-sweep" />}
+              </button>
+            )
+          })}
         </div>
       </section>
 
-      {/* Mission 01 */}
-      <section style={{ padding: '0 20px 120px', display: 'flex', gap: 80, alignItems: 'flex-start' }}>
-        <div style={{ flex: '0 0 auto' }}>
-          <p style={{ fontFamily: FONT.sans, fontSize: 72, color: '#fff', letterSpacing: '-1.44px', lineHeight: 1.2, margin: 0 }}>01</p>
-          <p style={{ fontFamily: FONT.sans, fontSize: 32, color: '#fff', letterSpacing: '-.64px', lineHeight: 1.2, marginTop: 16, maxWidth: 450 }}>Identifying vessels in restricted waters.</p>
+      {/* Selected problem: text on column 2, player box ending on column 9 */}
+      <section className={GRID} style={{ paddingBottom: 300 }}>
+        <div className="md:col-[2/5]">
+          <RevealText key={`n${selected}`} text={pad(selected)}
+            style={{ fontFamily: FONT.sans, fontSize: 72, color: '#fff', letterSpacing: '-1.44px', lineHeight: 1.2, margin: 0 }} />
+          <RevealText key={`t${selected}`} text={PROBLEMS[selected]} delay={.08}
+            style={{ fontFamily: FONT.sans, fontSize: 32, color: '#fff', letterSpacing: '-.64px', lineHeight: 1.2, margin: '28px 0 0' }} />
         </div>
-        <div style={{ flex: '0 0 700px', background: '#222', borderRadius: 6, overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 13px', height: 38, borderBottom: '1px solid #4e4e4e' }}>
-            <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-              <img src={`${A}/0162c.svg`} alt="" style={{ width: 28, height: 20 }} />
-              <img src={`${A}/fe169.svg`} alt="" style={{ width: 34, height: 20 }} />
+        <div className={`${BOX} md:col-[5/10] md:justify-self-end`}
+          style={{ background: '#222', borderRadius: 6, padding: '5.6% 11.3%', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 32, flexShrink: 0, padding: '0 10px', border: '1px solid rgba(255,255,255,.28)', borderRadius: 4 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <img src={`${A}/0162c.svg`} alt="" style={{ width: 22, height: 16 }} />
+              <img src={`${A}/fe169.svg`} alt="" style={{ width: 27, height: 16 }} />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <img src={`${A}/a787c.svg`} alt="" style={{ width: 8, height: 8 }} />
-              <span style={{ fontFamily: FONT.mono, fontSize: 9, color: '#4e4e4e' }}>Live</span>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: BLUE }} />
+              <span style={{ fontFamily: FONT.mono, fontSize: 9, color: 'rgba(255,255,255,.5)' }}>Live</span>
             </div>
           </div>
-          <img src={`${A}/a34de.png`} alt="Satellite view" style={{ width: '100%', height: 494, objectFit: 'cover', mixBlendMode: 'luminosity', display: 'block' }} />
+          {/* Video display: placeholder shade per problem until the videos land */}
+          <div style={{ flex: 1, borderRadius: 2, background: DISPLAY_GREYS[selected], transition: 'background-color .5s ease' }} />
         </div>
       </section>
 
-      {/* What kind of mission */}
-      <section style={{ display: 'flex', alignItems: 'center', padding: '80px 20px', gap: 80 }}>
-        <div style={{ flex: '0 0 700px', background: '#222', borderRadius: '6px 0 6px 6px', height: 700, position: 'relative', overflow: 'hidden' }}>
+      {/* What kind of mission: box on columns 1-5, text from column 6 */}
+      <section className={GRID} style={{ paddingBottom: 300 }}>
+        <div className={`${BOX} md:col-[1/6]`} style={{ background: '#222', borderRadius: 6, position: 'relative', overflow: 'hidden' }}>
           {[`${A}/c8f1b.svg`, `${A}/463e8.svg`, `${A}/bda6d.svg`, `${A}/99a28.svg`, `${A}/2e97a.svg`].map((src, i) => (
-            <div key={i} style={{ position: 'absolute', left: 85, width: 529, height: 127, top: 102 + i * 92, mixBlendMode: 'color-dodge' }}>
-              <img src={src} alt="" style={{ display: 'block', width: '96.62%', margin: '0 auto', height: '100%' }} />
-            </div>
+            <img key={i} src={src} alt="" style={{ position: 'absolute', left: '8.6%', width: '82.4%', height: '20.5%', top: `${9.8 + i * 14.9}%`, mixBlendMode: 'color-dodge' }} />
           ))}
         </div>
-        <div style={{ flex: '1 1 0', maxWidth: 471 }}>
-          <h2 style={{ fontFamily: FONT.sans, fontWeight: 400, fontSize: 'clamp(2rem,3.5vw,50px)', color: '#fff', letterSpacing: '-1px', lineHeight: 1.1, margin: '0 0 32px' }}>
-            What kind of mission do you want to accomplish?
-          </h2>
-          <p style={{ fontFamily: FONT.mono, fontWeight: 400, fontSize: 12, color: '#fff', lineHeight: 1.4, maxWidth: 333 }}>
-            Whatever the answer, NEO can deliver as much of it as you need: from the satellite alone to a fully operated mission.
-          </p>
+        <div className="md:col-[6/11]">
+          <RevealText as="h2" text="What kind of mission do you want to accomplish?"
+            style={{ fontFamily: FONT.sans, fontWeight: 400, fontSize: 'clamp(2rem,3.5vw,50px)', color: '#fff', letterSpacing: '-1px', lineHeight: 1.1, maxWidth: 500, margin: '0 0 48px' }} />
+          <RevealText text="Whatever the answer, NEO can deliver as much of it as you need: from the satellite alone to a fully operated mission." delay={.15}
+            style={{ fontFamily: FONT.mono, fontWeight: 400, fontSize: 12, color: '#fff', lineHeight: 1.4, maxWidth: 470, margin: 0 }} />
         </div>
       </section>
 
       {/* How much to deliver */}
-      <section style={{ padding: '80px 20px' }}>
-        <h2 style={{ fontFamily: FONT.sans, fontWeight: 400, fontSize: 'clamp(2rem,3.5vw,50px)', color: '#fff', letterSpacing: '-1px', lineHeight: 1.1, maxWidth: 700, margin: '0 0 80px' }}>
-          How much of the mission do you want us to deliver?
-        </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 20 }}>
-          {[
-            { title: 'The Satellite', img: `${A}/a34de.png`, desc: 'A VHR optical multispectral satellite, delivered as a standalone product.' },
-            { title: 'The Ground Segment - ORBI', img: null, desc: 'The software to plan, command, monitor, and process data for satellites you already operate.' },
-            { title: 'The Satellite + Ground Segment', img: `${A}/7aa13.png`, desc: "The satellite paired with ORBI, NEO's Ground Segment." },
-            { title: 'The Complete Mission', img: null, desc: 'Everything, plus mission design, launch, licensing, commissioning and ongoing operation.' },
-          ].map((tier, i) => (
+      <section style={{ padding: '0 20px 350px' }}>
+        <RevealText as="h2" text="How much of the mission do you want us to deliver?"
+          style={{ fontFamily: FONT.sans, fontWeight: 400, fontSize: 'clamp(2rem,3.5vw,50px)', color: '#fff', letterSpacing: '-1px', lineHeight: 1.1, maxWidth: 700, margin: '0 0 100px' }} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" style={{ gap: 20 }}>
+          {TIERS.map((tier, i) => (
             <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div style={{ aspectRatio: '279/340', borderRadius: 6, background: i === 3 ? '#4e4e4e' : '#222', overflow: 'hidden', position: 'relative' }}>
                 {tier.img && <img src={tier.img} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
+                {tier.video && <LoopVideo src={tier.video} pauseMs={1000} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <p style={{ fontFamily: FONT.sans, fontSize: 26, color: '#fff', letterSpacing: '-.52px', lineHeight: 1.2, margin: 0 }}>{tier.title}</p>
-                <p style={{ fontFamily: FONT.mono, fontWeight: 400, fontSize: 12, color: '#d3d3d3', lineHeight: 1.4, margin: 0 }}>{tier.desc}</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 30 }}>
+                <RevealText text={tier.title} delay={i * .08}
+                  style={{ fontFamily: FONT.sans, fontSize: 26, color: '#fff', letterSpacing: '-.52px', lineHeight: 1.2, margin: 0 }} />
+                <RevealText text={tier.desc} delay={i * .08 + .12}
+                  style={{ fontFamily: FONT.mono, fontWeight: 400, fontSize: 12, color: '#d3d3d3', lineHeight: 1.4, margin: 0 }} />
               </div>
             </div>
           ))}

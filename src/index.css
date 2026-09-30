@@ -87,6 +87,49 @@
   --font-sprig: 'FAIRE Sprig Sans Trial:Regular', 'Inter', sans-serif;
   --font-sprig-medium: 'FAIRE Sprig Sans Trial:Medium', 'Inter', sans-serif;
   --font-sprig-mono: 'FAIRE Sprig Sans Mono Trial Variable:Regular', monospace;
+
+  /* Brand blue — the only brand colour. Shades mix toward white / black;
+     for transparency use Tailwind's opacity modifier (bg-neo-blue/20) or
+     rgba(var(SEL), a) from src/data/pages.ts in inline styles. */
+  --color-neo-blue: #55a6ff;
+  --color-neo-blue-100: color-mix(in oklab, #55a6ff 20%, white);
+  --color-neo-blue-200: color-mix(in oklab, #55a6ff 40%, white);
+  --color-neo-blue-300: color-mix(in oklab, #55a6ff 60%, white);
+  --color-neo-blue-400: color-mix(in oklab, #55a6ff 80%, white);
+  --color-neo-blue-500: #55a6ff;
+  --color-neo-blue-600: color-mix(in oklab, #55a6ff 80%, black);
+  --color-neo-blue-700: color-mix(in oklab, #55a6ff 60%, black);
+  --color-neo-blue-800: color-mix(in oklab, #55a6ff 40%, black);
+  --color-neo-blue-900: color-mix(in oklab, #55a6ff 20%, black);
+}
+
+/* ─── Sweep stroke ─────────────────────────────────────────────────────────────
+   A 1.5px border whose brand-blue → transparent gradient travels round the
+   element clockwise. Put .neo-sweep on an absolutely positioned child of a
+   rounded, position:relative parent. */
+@property --neo-sweep-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes neo-sweep { to { --neo-sweep-angle: 360deg; } }
+
+.neo-sweep {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  pointer-events: none;
+  background: conic-gradient(from var(--neo-sweep-angle), rgb(85 166 255 / 0), var(--color-neo-blue));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  animation: neo-sweep 2.8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .neo-sweep { animation: none; background: var(--color-neo-blue); }
 }
 
 * { box-sizing: border-box; }
@@ -103,3 +146,22 @@ body {
   padding: 0;
   overflow-x: hidden;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .neo-reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+}
+
+/* ─── Cursor hint (OrbitalNav) ─────────────────────────────────────────────────
+   Applied per word (staggered via animation-delay): each word rises into place
+   as it fades in, and keeps rising as it fades out. `both` holds the start
+   state during the delay, so later words wait hidden (in) or visible (out). */
+@keyframes neo-hint-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes neo-hint-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-8px); }
+}
+.neo-hint-in  { animation: neo-hint-in .8s cubic-bezier(.16,1,.3,1) both; }
+.neo-hint-out { animation: neo-hint-out .7s cubic-bezier(.4,0,.2,1) both; }
