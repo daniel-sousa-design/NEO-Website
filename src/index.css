@@ -1,0 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import 'tailwindcss';
+
+@font-face {
+  font-family: 'Bitcount Single:Regular';
+  src: url('https://static.figma.com/font/BitcountSingle_CRSV_ELSH_ELXP_slnt_wght__1') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: 'FAIRE Sprig Sans Mono Trial Variable:Regular';
+  src: url('/fonts/FAIRE_Sprig_Sans_Mono_Trial_Variable-Regular.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: 'FAIRE Sprig Sans Trial:Medium';
+  src: url('/fonts/FAIRE_Sprig_Sans_Trial-Medium.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 500;
+}
+
+@font-face {
+  font-family: 'FAIRE Sprig Sans Trial:Regular';
+  src: url('/fonts/FAIRE_Sprig_Sans_Trial-Regular.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+}
+
+@theme {
+  --font-sans: 'Inter', sans-serif;
+  --font-sprig: 'FAIRE Sprig Sans Trial:Regular', 'Inter', sans-serif;
+  --font-sprig-medium: 'FAIRE Sprig Sans Trial:Medium', 'Inter', sans-serif;
+  --font-sprig-mono: 'FAIRE Sprig Sans Mono Trial Variable:Regular', monospace;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: auto; }
+
+::-webkit-scrollbar { width: 0; background: transparent; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: #000;
+  color: #f0f0f0;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}

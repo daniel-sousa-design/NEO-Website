@@ -1,0 +1,10 @@
+{
+  "description": "This innovative navigation system enhances user experience by providing an interactive, scroll-driven interface that visually guides users through website pages.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
