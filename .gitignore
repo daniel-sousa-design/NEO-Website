@@ -22,3 +22,5 @@ logs/
 
 # source archive from Figma Make export
 NEO_Prototype_01.zip
+# Playwright CLI output (may contain credentials)
+.playwright-cli/
