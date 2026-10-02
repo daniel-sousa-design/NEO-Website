@@ -13,7 +13,7 @@ const DEPTH = 9                        // extrusion, in logo units
 const SLICES = 7
 const MS = 1300
 const FRAME_MS = 50
-const STATIC = '/favicon.svg'
+const STATIC = `${import.meta.env.BASE_URL}favicon.svg`
 
 const ease = (t: number) => t < .5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2
 

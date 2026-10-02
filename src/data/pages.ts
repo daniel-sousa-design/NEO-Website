@@ -20,4 +20,4 @@ export const BLUE = '#55A6FF'
 export const SEL = '85,166,255'
 
 /** Public asset folder (Figma exports). */
-export const A = '/assets'
+export const A = `${import.meta.env.BASE_URL}assets`   // respects Vite's `base` (sub-path deploys)
