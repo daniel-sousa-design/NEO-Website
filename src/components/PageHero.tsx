@@ -25,7 +25,8 @@ export function PageHero({ title, headline, sub, introResetKey = 0 }: {
       {/* Spacer — positions nav at ~25vh (halfway between top and center) */}
       <div style={{ height: 'calc(25vh - 42px)', position: 'relative', zIndex: 1 }} />
 
-      <div style={{ position: 'relative', zIndex: 2 }}>
+      {/* The nav's layer for the whole page: once pinned it must sit above every section (z-index > all page content), below only full-screen overlays (orbit menu 80, cursor 90, page flood 200) */}
+      <div style={{ position: 'relative', zIndex: 60 }}>
         <PageNav title={title} introPhase={phase} />
       </div>
 

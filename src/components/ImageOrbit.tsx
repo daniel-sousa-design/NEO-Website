@@ -141,8 +141,9 @@ export function ImageOrbit() {
     return () => cancelAnimationFrame(raf)
   }, [])
 
+  // isolation: the tiles' depth z-indexes (0–100) stay inside the section, under the page nav
   return (
-    <section ref={sectionRef} aria-label="Engineering in pictures" style={{ position: 'relative', height: 'max(760px, 100vh)', overflow: 'hidden' }}>
+    <section ref={sectionRef} aria-label="Engineering in pictures" style={{ position: 'relative', height: 'max(760px, 100vh)', overflow: 'hidden', isolation: 'isolate' }}>
       {TILES.map((tile, i) => (
         <div key={i} ref={el => { tileRefs.current[i] = el }} style={{
           position: 'absolute', left: 0, top: 0, width: tile.w, height: tile.h, overflow: 'hidden',
