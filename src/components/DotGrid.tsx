@@ -19,14 +19,15 @@ const DOT_JITTER = 140     // px — per-dot spread of that timing, so rows don'
  *  settle; scrolling back up sends them out again. */
 // `strength` (default 1) makes the arrival bolder: dots start further out,
 // scatter more vertically, and fly in larger and brighter, shrinking as they land.
-export function DotGrid({ cols = DOT_COLS, progressRef, strength = 1 }: { cols?: number; progressRef?: RefObject<number>; strength?: number }) {
+// `rowGap` overrides the row spacing (px), e.g. to fit a whole number of rows into a box.
+export function DotGrid({ cols = DOT_COLS, progressRef, strength = 1, rowGap = DOT_ROW }: { cols?: number; progressRef?: RefObject<number>; strength?: number; rowGap?: number }) {
   const ref = useRef<HTMLDivElement>(null)
   const dotRefs = useRef<(HTMLSpanElement | null)[]>([])
   const [size, setSize] = useState({ w: 0, rows: 0 })
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    const ro = new ResizeObserver(() => setSize({ w: el.offsetWidth, rows: Math.floor(el.offsetHeight / DOT_ROW) + 1 }))
+    const ro = new ResizeObserver(() => setSize({ w: el.offsetWidth, rows: Math.floor(el.offsetHeight / rowGap) + 1 }))
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
@@ -59,7 +60,7 @@ export function DotGrid({ cols = DOT_COLS, progressRef, strength = 1 }: { cols?:
       dots.forEach((d, i) => {
         const node = dotRefs.current[i]
         if (!node) return
-        const y = b.top + d.r * DOT_ROW + d.jitter
+        const y = b.top + d.r * rowGap + d.jitter
         const q = progressRef
           ? Math.max(0, Math.min(1, progressRef.current * 1.6 - d.r / Math.max(1, size.rows) * .6 + d.jitter / DOT_JITTER * .15))
           : Math.max(0, Math.min(1, (line - y) / DOT_SPAN))
@@ -78,7 +79,7 @@ export function DotGrid({ cols = DOT_COLS, progressRef, strength = 1 }: { cols?:
     <div ref={ref} aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
       {dots.map((d, i) => (
         <span key={i} ref={el => { dotRefs.current[i] = el }} style={{
-          position: 'absolute', left: `${d.fx * 100}%`, top: d.r * DOT_ROW, opacity: 0,
+          position: 'absolute', left: `${d.fx * 100}%`, top: d.r * rowGap, opacity: 0,
           width: 2, height: 2, margin: '-1px 0 0 -1px', borderRadius: '50%', background: 'rgba(255,255,255,.22)',
         }} />
       ))}

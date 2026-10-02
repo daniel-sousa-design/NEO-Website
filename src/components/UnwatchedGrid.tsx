@@ -23,11 +23,11 @@ const BOX_W = 1456, BOX_H = 1540
 const IMG = `${A}/unwatched`
 const RECTS = [
   { x: 1007, y: 1,    w: 289, h: 375, depth: .55, src: `${IMG}/port-crane.jpg`,     alt: 'A container crane on an empty, rain-wet quay at dusk' },
-  { x: 54,   y: 171,  w: 288, h: 375, depth: 1,   src: `${IMG}/vessel.jpg`,         alt: 'A lone fishing vessel on open water, seen from above' },
+  { x: 54,   y: 171,  w: 288, h: 375, depth: 1,   src: `${IMG}/vessel.mp4`,         alt: 'A lone fishing vessel on open water, seen from above' },
   { x: 549,  y: 329,  w: 249, h: 325, depth: .35, src: `${IMG}/coast-road.jpg`,     alt: 'A road winding along misty sea cliffs' },
   { x: 831,  y: 490,  w: 367, h: 478, depth: .8,  src: `${IMG}/flooded-road.jpg`,   alt: 'A road and a house surrounded by floodwater, from above' },
   { x: 163,  y: 756,  w: 396, h: 516, depth: .6,  src: `${IMG}/undersea-cable.jpg`, alt: 'An undersea cable running across the seabed' },
-  { x: 659,  y: 1070, w: 743, h: 470, depth: 1.2, src: `${IMG}/facility.jpg`,       alt: 'An industrial facility under construction in the desert, satellite view' },
+  { x: 659,  y: 1070, w: 743, h: 470, depth: 1.2, src: `${IMG}/facility.mp4`,       alt: 'Timelapse: an industrial facility rising in the desert, seen from orbit' },
 ]
 
 export function UnwatchedGrid() {
@@ -99,16 +99,25 @@ export function UnwatchedGrid() {
 function Photo({ src, alt }: { src: string; alt: string }) {
   const [ref, inView] = useInView<HTMLDivElement>('0px 0px -18% 0px', false)
   const ease = 'cubic-bezier(.16,1,.3,1)'
+  // A video (.mp4) loops silently, playing only while revealed.
+  const isVideo = src.endsWith('.mp4')
+  const videoRef = useRef<HTMLVideoElement>(null)
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v) return
+    if (inView) v.play().catch(() => {})
+    else v.pause()
+  }, [inView])
+  const media = { width: '100%', height: '100%', objectFit: 'cover', display: 'block', transform: inView ? 'scale(1)' : 'scale(1.12)', transition: `transform 2s ${ease}` } as const
   return (
     <div ref={ref} style={{
       width: '100%', height: '100%', borderRadius: 8, overflow: 'hidden', background: '#141414',
       opacity: inView ? 1 : 0, transform: inView ? 'translateY(0) scale(1)' : 'translateY(60px) scale(.96)',
       transition: `opacity 1s ${ease}, transform 1.4s ${ease}`,
     }}>
-      <img src={src} alt={alt} loading="lazy" style={{
-        width: '100%', height: '100%', objectFit: 'cover', display: 'block',
-        transform: inView ? 'scale(1)' : 'scale(1.12)', transition: `transform 2s ${ease}`,
-      }} />
+      {isVideo
+        ? <video ref={videoRef} src={src} poster={src.replace(/\.mp4$/, '-poster.jpg')} muted loop playsInline preload="metadata" aria-label={alt} style={media} />
+        : <img src={src} alt={alt} loading="lazy" style={media} />}
     </div>
   )
 }

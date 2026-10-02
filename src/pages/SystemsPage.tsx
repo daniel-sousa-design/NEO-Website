@@ -4,6 +4,8 @@ import { FONT } from '../lib/fonts'
 import { ease } from '../lib/motion'
 import { PageHero } from '../components/PageHero'
 import { RevealText } from '../components/RevealText'
+import { OrbiDashboard } from '../components/OrbiDashboard'
+import { OrbiSegments } from '../components/OrbiSegments'
 
 // ─── Page: Systems ────────────────────────────────────────────────────────────
 
@@ -22,7 +24,7 @@ const SYSTEMS: Record<SystemId, {
     label: 'System B', tagline: 'One that operates.',
     title: 'ORBI: Ground Segment',
     body: 'An integrated software suite for planning, operating, managing, processing, distributing, and commercialising satellite missions and data — supporting single satellites, constellations, and heterogeneous systems.',
-    img: null, // TODO: ORBI visual
+    img: null,   // shown as the live ORBI dashboard instead
   },
 }
 
@@ -36,6 +38,9 @@ const SERVICES = [
 const FEATHER = 'radial-gradient(ellipse 50% 50% at 50% 50%, #000 60%, transparent 100%)'
 const CINE_FEATHER = 'radial-gradient(ellipse 50% 50% at 50% 42%, #000 62%, transparent 100%)'
 
+// Service numbers and titles — the same type as the closing line of ORBI's segments.
+const SERVICE_HEAD = { fontFamily: FONT.sans, fontWeight: 400, fontSize: 'clamp(24px, 2.2vw, 32px)', color: '#fff', letterSpacing: '-.5px', lineHeight: 1.2, margin: 0 } as const
+
 const BITCOUNT = { fontFamily: FONT.bitcount, fontWeight: 400, color: '#fff', textTransform: 'uppercase', letterSpacing: 0, lineHeight: 1.1, fontVariationSettings: '"CRSV" 0, "ELSH" 0, "ELXP" 0' } as const
 
 export function SystemsPage({ introResetKey }: { introResetKey: number }) {
@@ -47,18 +52,19 @@ export function SystemsPage({ introResetKey }: { introResetKey: number }) {
 
       <SystemsShowcase />
 
-      {/* Services: 300px below the systems, columns 250px under the title, right-aligned */}
+      {/* Services: 300px below the systems, columns 250px under the title, right-aligned one grid column in */}
       <section style={{ padding: '300px 20px 300px' }}>
         <RevealText as="h2" text="Beyond the two systems, NEO offers two further services built around them:" style={{
           fontFamily: FONT.sans, fontWeight: 400, fontSize: 'clamp(2.5rem,6vw,90px)', color: '#fff', letterSpacing: '-1.8px', lineHeight: 1, maxWidth: 917, margin: '0 0 250px',
         }} />
-        <div className="flex flex-col md:flex-row md:justify-end" style={{ gap: 20 }}>
+        <div className="flex flex-col md:flex-row md:justify-end md:pr-[calc((100%+10px)/10)]" style={{ gap: 20 }}>
           {SERVICES.map((s, i) => (
             <div key={s.n} className="md:w-[min(572px,50%)]" style={{ borderTop: '1px solid #4e4e4e', paddingTop: 20, display: 'flex', gap: 40 }}>
-              <RevealText text={s.n} delay={i * .1} style={{ fontFamily: FONT.medium, fontSize: 32, color: '#fff', letterSpacing: '-.64px', lineHeight: 1.2, margin: 0, flexShrink: 0 }} />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
+              <RevealText text={s.n} delay={i * .1} style={{ ...SERVICE_HEAD, flexShrink: 0 }} />
+              {/* text runs to 90% of the column's width */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 40, flex: 1, marginRight: '10%' }}>
                 <div>
-                  <RevealText text={s.title} delay={i * .1 + .05} style={{ fontFamily: FONT.medium, fontSize: 32, color: '#fff', letterSpacing: '-.64px', lineHeight: 1.2, margin: '0 0 12px' }} />
+                  <RevealText text={s.title} delay={i * .1 + .05} style={{ ...SERVICE_HEAD, margin: '0 0 12px' }} />
                   <RevealText text={s.sub} delay={i * .1 + .15} style={{ fontFamily: FONT.sans, fontSize: 12, color: '#a7a7a7', lineHeight: 1.3, margin: 0 }} />
                 </div>
                 <RevealText text={s.body} delay={i * .1 + .2} style={{ fontFamily: FONT.mono, fontWeight: 400, fontSize: 12, color: '#fff', lineHeight: 1.3, margin: 0 }} />
@@ -86,6 +92,9 @@ export function SystemsPage({ introResetKey }: { introResetKey: number }) {
 //      timed transition, not scrubbed): the cinematic drifts up and fades, the
 //      two-column layout (text left, visual right) rises in and its copy
 //      reveals. Scrolling back above BREAK plays it in reverse.
+//   3. System B only — sideways: after a pause on the composition, scrolling
+//      slides the stage left through ORBI's segments (OrbiSegments), one pixel
+//      across per pixel down, then holds before the page moves on.
 
 const SCRUB_VH = 160      // extra scroll the stage stays pinned for
 const RISE_END = .35      // pinned progress at which the render has fully risen
@@ -99,6 +108,12 @@ const CINE_START_SCALE = .5 // the render grows from half size (140vh tall)…
 const CINE_START_TOP   = 4  // …starting from where that smaller render sat (top, in vh), plus RISE_VH below
 const TILT_X = 9, TILT_Y = 14   // max render tilt, degrees
 const SWITCH_VISIBLE = .3       // a system switch cuts to where this much of the stage is on screen
+// System B only: after the composition, the stage scrolls sideways through
+// ORBI's segments. It starts this far into the pinned scroll (vh)…
+const H_START_VH = 120
+// …moves one pixel sideways per pixel scrolled, then holds this long (vh) at the end.
+const H_TAIL_VH = 30
+const H_FOLLOW = 8              // sideways easing (1/s)
 
 function SystemsShowcase() {
   const [system, setSystem] = useState<SystemId>('a')
@@ -108,6 +123,30 @@ function SystemsShowcase() {
   const [toggleShown, setToggleShown] = useState(false)
   const toggleRef = useRef(false)
   const holdRef = useRef<number | null>(null) // scrollY of a switch jump; keeps the toggle up until the user moves on
+  // Sideways track (System B): how far it overflows the screen, and the scroll-driven target 0..1.
+  const trackRef = useRef<HTMLDivElement>(null)
+  const [extraPx, setExtraPx] = useState(0)
+  const extraRef = useRef(0)
+  // The first segment card starts 400px after the dashboard's right edge.
+  const panel1Ref = useRef<HTMLDivElement>(null)
+  const dashBRef = useRef<HTMLDivElement>(null)
+  const [lead, setLead] = useState(400)
+  const hTarget = useRef(0)
+  const horizontal = system === 'b'
+  useEffect(() => {
+    const el = trackRef.current
+    if (!el || !horizontal) { extraRef.current = 0; setExtraPx(0); return }
+    const measure = () => {
+      const p = panel1Ref.current?.getBoundingClientRect(), d = dashBRef.current?.getBoundingClientRect()
+      if (p && d) setLead(Math.round(400 - (p.right - d.right)))
+      const x = Math.max(0, el.scrollWidth - window.innerWidth); extraRef.current = x; setExtraPx(x)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    window.addEventListener('resize', measure)
+    return () => { ro.disconnect(); window.removeEventListener('resize', measure) }
+  }, [horizontal])
 
   // Scrub progress + toggle presence. With hysteresis, the toggle shows once
   // ≥80% of the stage (the opening shot, on the way in) is on screen, and
@@ -117,13 +156,16 @@ function SystemsShowcase() {
       const r = sectionRef.current?.getBoundingClientRect()
       if (!r) return
       const vh = window.innerHeight
-      const pinned = r.height - vh
-      const prog = Math.max(0, Math.min(1, -r.top / pinned))
+      // Timings are in vh of the base pinned scroll, so System B's extra
+      // sideways stretch doesn't stretch the opening.
+      const pinned = SCRUB_VH / 100 * vh
       // Rise is scrubbed from the moment the section enters the viewport until
       // RISE_END of the pinned scroll.
       const t = Math.max(0, Math.min(1, (vh - r.top) / (vh + RISE_END * pinned)))
       setRise(t * t * (3 - 2 * t))
-      setComposed(prog >= BREAK)
+      setComposed(-r.top >= BREAK * pinned)
+      const extra = extraRef.current
+      hTarget.current = extra ? Math.max(0, Math.min(1, (-r.top - H_START_VH / 100 * vh) / extra)) : 0
       const stageVisible = Math.max(0, Math.min(vh, r.bottom) - Math.max(0, r.top)) / vh
       let next = toggleRef.current
       if (stageVisible >= .8) next = true
@@ -146,13 +188,17 @@ function SystemsShowcase() {
   const tiltRef = useRef<HTMLDivElement>(null)
   const tiltTarget = useRef({ x: 0, y: 0 })
   useEffect(() => {
-    let raf = 0, x = 0, y = 0, last = performance.now()
+    let raf = 0, x = 0, y = 0, h = 0, last = performance.now()
     const tick = (t: number) => {
-      const k = 1 - Math.exp(-4 * Math.max(0, Math.min(.05, (t - last) / 1000)))
+      const dt = Math.max(0, Math.min(.05, (t - last) / 1000))
+      const k = 1 - Math.exp(-4 * dt)
       last = t
       x += (tiltTarget.current.x - x) * k
       y += (tiltTarget.current.y - y) * k
       if (tiltRef.current) tiltRef.current.style.transform = `perspective(1400px) rotateX(${-y * TILT_X}deg) rotateY(${x * TILT_Y}deg)`
+      // Sideways track, eased toward the scroll position.
+      h += (hTarget.current - h) * (1 - Math.exp(-H_FOLLOW * dt))
+      if (trackRef.current) trackRef.current.style.transform = `translate3d(${-h * extraRef.current}px, 0, 0)`
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
@@ -176,7 +222,7 @@ function SystemsShowcase() {
 
   return (
     <>
-      <section ref={sectionRef} style={{ position: 'relative', height: `${100 + SCRUB_VH}vh` }}>
+      <section ref={sectionRef} style={{ position: 'relative', height: horizontal ? `calc(${100 + SCRUB_VH + H_TAIL_VH}vh + ${extraPx}px)` : `${100 + SCRUB_VH}vh` }}>
         <div
           onMouseMove={e => { tiltTarget.current = { x: e.clientX / window.innerWidth - .5, y: e.clientY / window.innerHeight - .5 } }}
           onMouseLeave={() => { tiltTarget.current = { x: 0, y: 0 } }}
@@ -206,7 +252,7 @@ function SystemsShowcase() {
                         ...shown, position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block',
                         maskImage: CINE_FEATHER, WebkitMaskImage: CINE_FEATHER,
                       }} />
-                    : <div key={id} style={{ ...shown, position: 'absolute', left: '6%', right: '6%', top: '24%', aspectRatio: '16 / 10', background: '#222', borderRadius: 8 }} />
+                    : <div key={id} style={{ ...shown, position: 'absolute', left: '20%', right: '20%', top: '30%' }}><OrbiDashboard /></div>
                 })}
               </div>
             </div>
@@ -219,14 +265,18 @@ function SystemsShowcase() {
             }} />
           </div>
 
-          {/* 2. Composition: text on the left, visual on the right — arrives by itself */}
-          <div className="grid grid-cols-1 md:grid-cols-10 gap-x-[10px] gap-y-12 px-5 items-center" aria-hidden={!composed} style={{
+          {/* 2. Composition: text on the left, visual on the right — arrives by
+              itself. For System B it's the first panel of a sideways track
+              through ORBI's segments. */}
+          <div aria-hidden={!composed} style={{
             position: 'absolute', inset: 0, pointerEvents: composed ? 'auto' : 'none',
             opacity: composed ? 1 : 0, transform: `translateY(${composed ? 0 : 50}px)`,
             transition: composed
               ? 'opacity 1s .3s cubic-bezier(.16,1,.3,1), transform 1.2s .3s cubic-bezier(.16,1,.3,1)'
               : 'opacity .5s cubic-bezier(.4,0,.2,1), transform .6s cubic-bezier(.4,0,.2,1)',
           }}>
+          <div ref={trackRef} style={{ display: 'flex', alignItems: 'center', height: '100%', width: 'max-content', willChange: 'transform' }}>
+          <div ref={panel1Ref} className="grid grid-cols-1 md:grid-cols-10 gap-x-[10px] gap-y-12 px-5 items-center" style={{ width: '100vw', flex: 'none' }}>
             <div className="md:col-[2/5]">
               {sys.eyebrow
                 ? <RevealText key={`e${system}`} text={sys.eyebrow} ready={composed} style={{ fontFamily: FONT.mono, fontSize: 12, color: '#a7a7a7', lineHeight: 1.3, margin: '0 0 12px' }} />
@@ -242,9 +292,14 @@ function SystemsShowcase() {
                 const style = { position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: id === system ? 1 : 0, transition: 'opacity .6s ease' } as const
                 return img
                   ? <img key={id} src={img} alt={SYSTEMS[id].title} style={{ ...style, objectFit: 'cover', objectPosition: '50% 46%', maskImage: FEATHER, WebkitMaskImage: FEATHER }} />
-                  : <div key={id} style={{ ...style, background: '#222', borderRadius: 6 }} />
+                  // The box is zoomed 1.5× for the render; the dashboard takes 0.8 of that
+                  // (≈ 1.2× the columns, ≈ 820px at 1440), nudged right to clear the text.
+                  : <div key={id} style={{ ...style, display: 'flex', alignItems: 'center', transform: 'translateX(3%) scale(.8)' }}><div ref={dashBRef} style={{ width: '100%' }}><OrbiDashboard style={{ width: '100%' }} /></div></div>
               })}
             </div>
+          </div>
+          {horizontal && <OrbiSegments lead={lead} />}
+          </div>
           </div>
         </div>
       </section>

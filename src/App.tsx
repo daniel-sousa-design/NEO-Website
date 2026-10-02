@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { PAGES } from './data/pages'
+import { spinFavicon } from './lib/faviconSpin'
 import { ease } from './lib/motion'
 import { pageFromPath, pathFor, titleFor } from './lib/routes'
 import { useSmoothScroll } from './hooks/useSmoothScroll'
@@ -84,6 +85,8 @@ export default function App() {
   }, [isTransitioning, currentPage, navigate])
 
   useEffect(() => { document.title = titleFor(currentPage) }, [currentPage])
+  // The tab icon turns once on load and on every page change.
+  useEffect(() => { spinFavicon() }, [currentPage])
 
   const nav = useMemo(() => ({ current: currentPage, navigate }), [currentPage, navigate])
 

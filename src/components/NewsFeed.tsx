@@ -4,6 +4,7 @@ import { FONT } from '../lib/fonts'
 import { useInView } from '../hooks/useInView'
 import { useSweep } from '../hooks/useSweep'
 import { RevealText } from './RevealText'
+import { SweepButton } from './SweepButton'
 
 // ─── News feed ────────────────────────────────────────────────────────────────
 // Intro line, the featured article (photo left, details right), then Date /
@@ -240,27 +241,6 @@ function ReadMore({ onBlue = false }: { onBlue?: boolean }) {
       style={{ height: 42, padding: '0 20px', fontSize: 13, background: '#333' }} color="#fff" colorOn={onBlue ? BLUE : '#fff'}>
       Read more
     </SweepButton>
-  )
-}
-
-/** A mono pill whose background sweeps to a solid colour on hover / focus. */
-function SweepButton({ children, onClick, rgb = BLUE_RGB, color, colorOn, forced = false, style, ...rest }: {
-  children: ReactNode; onClick?: () => void; rgb?: string; color: string; colorOn: string; forced?: boolean; style?: CSSProperties; 'aria-disabled'?: boolean
-}) {
-  const [hover, setOn] = useState(false)
-  const on = hover || forced
-  const fill = useSweep<HTMLSpanElement>(on, { rgb, ms: 480 })
-  return (
-    <button type="button" onClick={onClick} {...rest}
-      onMouseEnter={() => setOn(true)} onMouseLeave={() => setOn(false)} onFocus={() => setOn(true)} onBlur={() => setOn(false)}
-      className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-      style={{
-        position: 'relative', overflow: 'hidden', alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', border: 0, borderRadius: 4,
-        fontFamily: FONT.mono, cursor: onClick ? 'pointer' : 'default', color: on ? colorOn : color, transition: 'color .35s ease', ...style,
-      }}>
-      <span ref={fill} aria-hidden style={{ position: 'absolute', inset: 0 }} />
-      <span style={{ position: 'relative' }}>{children}</span>
-    </button>
   )
 }
 
