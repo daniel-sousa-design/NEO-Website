@@ -1,10 +1,9 @@
 import type { CSSProperties } from 'react'
-import { words } from '../lib/text'
 
 // ─── Staggered hero text ──────────────────────────────────────────────────────
 
 export function StaggeredText({ text, active, className, style }: { text: string; active: boolean; className?: string; style?: CSSProperties }) {
-  const list = words(text)
+  const list = text.split(' ')
   return (
     <span className={className} style={{ display: 'block', ...style }}>
       {list.map((word, wi) => (

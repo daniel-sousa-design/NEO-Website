@@ -129,8 +129,7 @@ export function MissionsPage({ introResetKey }: { introResetKey: number }) {
       <section className={GRID} style={{ paddingBottom: 300 }}>
         <MissionLayers />
         <div className="md:col-[7/11]">
-          {/* wraps freely: here a single word on the last line is fine */}
-          <RevealText as="h2" freeWrap text="What kind of mission do you want to accomplish?"
+          <RevealText as="h2" text="What kind of mission do you want to accomplish?"
             style={{ fontFamily: FONT.sans, fontWeight: 400, fontSize: 'clamp(2rem,3.5vw,50px)', color: '#fff', letterSpacing: '-1px', lineHeight: 1.1, maxWidth: 500, margin: '0 0 48px' }} />
           <RevealText text="Whatever the answer, NEO can deliver as much of it as you need: from the satellite alone to a fully operated mission." delay={.15}
             style={{ fontFamily: FONT.mono, fontWeight: 400, fontSize: 12, color: '#fff', lineHeight: 1.4, maxWidth: 470, margin: 0 }} />

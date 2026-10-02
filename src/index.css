@@ -145,10 +145,6 @@ body {
   margin: 0;
   padding: 0;
   overflow-x: hidden;
-  /* No lone word on a paragraph's last line. Plain text relies on this (where
-     the browser supports it); word-animated text also glues its last two
-     words together — see src/lib/text.ts. */
-  text-wrap: pretty;
 }
 
 @media (prefers-reduced-motion: reduce) {

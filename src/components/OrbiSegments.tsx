@@ -2,7 +2,6 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import { FONT } from '../lib/fonts'
 import { RevealText } from './RevealText'
 import { SweepButton } from './SweepButton'
-import { words } from '../lib/text'
 
 // ─── ORBI segments ────────────────────────────────────────────────────────────
 // The panels that follow System B's composition on the Systems page's sideways
@@ -189,7 +188,7 @@ function Card({ n, sg, cardRef }: { n: number; sg: Segment; cardRef: (el: HTMLEl
   useLayoutEffect(() => {
     const sec = sectionRef.current
     if (!sec) return
-    const base = 1 + words(sg.title).length
+    const base = 1 + sg.title.split(' ').length
     const measure = () => {
       let line = -1, lastTop = -Infinity
       introRef.current?.querySelectorAll<HTMLElement>('[data-w]').forEach(w => {
@@ -212,11 +211,11 @@ function Card({ n, sg, cardRef }: { n: number; sg: Segment; cardRef: (el: HTMLEl
       {/* top — number and name; colour driven by focus */}
       <div style={{ ...BOX, position: 'relative', aspectRatio: '1340 / 557', background: mix(TOP, 0), color: mix(INK, 0) }}>
         <span style={{ ...big, position: 'absolute', left: c(50), top: c(48) }}><Masked words={[String(n).padStart(2, '0')]} seq={0} /></span>
-        <h3 aria-label={sg.title} style={{ ...big, position: 'absolute', left: c(50), right: c(50), bottom: c(44) }}><Masked words={words(sg.title)} seq={1} /></h3>
+        <h3 aria-label={sg.title} style={{ ...big, position: 'absolute', left: c(50), right: c(50), bottom: c(44) }}><Masked words={sg.title.split(' ')} seq={1} /></h3>
       </div>
       {/* bottom — description, the opened module's summary, then the module buttons; sized to its contents */}
       <div style={{ ...BOX, marginTop: c(24), background: '#222', padding: `${c(44)} ${c(48)} ${c(40)}`, display: 'flex', flexDirection: 'column' }}>
-        {sg.intro && <p ref={introRef} aria-label={sg.intro} style={{ fontFamily: FONT.sans, fontWeight: 400, fontSize: c(40), lineHeight: 1.25, color: '#d6d6d6', margin: 0, maxWidth: c(1080) }}><Masked words={words(sg.intro)} /></p>}
+        {sg.intro && <p ref={introRef} aria-label={sg.intro} style={{ fontFamily: FONT.sans, fontWeight: 400, fontSize: c(40), lineHeight: 1.25, color: '#d6d6d6', margin: 0, maxWidth: c(1080) }}><Masked words={sg.intro.split(' ')} /></p>}
         {/* summary — opens and closes smoothly (0fr ↔ 1fr row) */}
         <div style={{ display: 'grid', gridTemplateRows: open !== null ? '1fr' : '0fr', transition: 'grid-template-rows .55s cubic-bezier(.16,1,.3,1)' }}>
           <div style={{ overflow: 'hidden', minHeight: 0 }}>
