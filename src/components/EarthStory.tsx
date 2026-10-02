@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { A, BLUE, SEL } from '../data/pages'
+import { A } from '../data/pages'
 import { isLand } from '../data/earthMask'
 import { FONT } from '../lib/fonts'
 import { RevealText } from './RevealText'
+import { animateScrollTo } from '../lib/scroll'
 
 // ─── Earth story ──────────────────────────────────────────────────────────────
 // One pinned stage, scrubbed by scroll, in five phases (lengths in vh of
@@ -19,10 +20,16 @@ import { RevealText } from './RevealText'
 //   E · stories  locked on the card: four subsections (seas → horizon). The
 //                backdrop is one 12s clip made of four 3s shots, one per
 //                slide, scrubbed by scroll so each shot starts exactly as its
-//                slide loads. Each slide reveals its copy. One full-width bar fills across all four
-//                with a gradient, blue at the left fading to 0% at its edge
-//                (solid blue by the end);
-//                its number + title swap out and in on each slide.
+//                slide loads. Each slide reveals its copy. Above a thin rule,
+//                the four titles (Bitcount, caps) are set along one orbit, like
+//                the page nav's: the current one flat at the 2nd column, the text
+//                after it bending up along a curve — growing, lighter (Regular →
+//                Light) and fainter as it goes. Each slide slides the line along
+//                the curve; it stops on the last title. Four dots on the
+//                left edge mark (and jump to) the slides. Just past the last
+//                slide everything on the card animates out — titles off to the
+//                left, copy line by line, rule retracting, dots fading — and
+//                back in when scrolling up.
 //   exit         as the stage unpins, the card moves up and scales back to 80%.
 //
 // The globe, stars and orbiting text are drawn on one canvas every frame; the
@@ -46,9 +53,28 @@ const SPIN = 3              // degrees per second
 const LON0 = 10             // longitude facing the camera at t = 0
 
 const CARD_SCALE = .8, CARD_RADIUS = 12
-const BAR_H = 56           // progress bar height, px
-const BAR_FS = 34          // bar number + title size, px
+const RULE_Y = '35%'       // the rule between titles and copy, from the card's top
+const COPY_Y = '47%'       // the copy sits 60px below this
+// 10-column grid, 20px margins, 10px gutters: one column's width, and column n's left edge
+const COL = '((100% - 130px) / 10)'
+const colX = (n: number) => `calc(20px + ${n - 1} * (${COL} + 10px))`
+// Title orbit: the titles run as one line of text set on a curve. Up to the end
+// of the current title it's flat; past that it bends up along a circular arc
+// and each letter grows. Passed titles bend down-left off the card.
+const TITLE_FS = 'clamp(4.8rem, 9.9vw, 150px)'
+const TITLE_Y = '32%'      // the line's baseline at the current title, from the card's top
+const TITLE_GAP = 1.3      // em between titles
+const CURVE = .5           // curvature, × 1/card width (higher = bends up sooner)
+const GROW = 1.1           // letters grow exponentially along the curve: ×e per (1 / GROW) card widths
+const FADE_W = .55         // over this share of the card width the text fades to its faintest / lightest
+const WGHT = [400, 100]    // Regular (current) → the lightest weight (furthest)
+const OP = [.5, .2]        // opacity just past the current title → furthest
+const TITLE_MS = 1300      // the line's slide to the next title
+const ENTER_MS = 1800      // the line's slide in from the right as the first slide opens (and back out)
+const ENTER_FROM = 1.3     // …starting this many card widths further along the curve
+const DOT = 20, DOT_GAP = 10   // slide-guide circles (left edge, centred)
 const SHOT_S = 3            // seconds of video per slide (earth-slides.mp4: 4 × 3s)
+const OUT_AT = 15           // vh before the stage unpins: everything on the card animates out (back in when scrolling up)
 const STORY_SMOOTH = 3.5    // story scrub easing (1/s): lower = more glide after scrolling stops
 
 const STORIES = [
@@ -57,8 +83,6 @@ const STORIES = [
   { label: 'The Underground', body: 'Over 95% of the world’s data and $10 trillion in daily financial transactions travel across undersea cables, an infrastructure that still suffered at least 44 publicly reported damage incidents in 2024 and 2025 alone.\n\nThe same blind spots reach borders and remote terrain, where incursions often go unnoticed simply because no one was watching that stretch of ground or water at the right moment.' },
   { label: 'The Horizon', body: 'Facilities expand, fleets move, and capacity grows — often long before any public announcement. Commercial satellite imagery has tracked over 21 million square feet of new missile-production capacity built in just five years, work that would otherwise have gone unannounced until it was finished.' },
 ]
-
-const BITCOUNT = { fontFamily: FONT.bitcount, fontWeight: 400, textTransform: 'uppercase', letterSpacing: 0, lineHeight: 1.1, fontVariationSettings: '"CRSV" 0, "ELSH" 0, "ELXP" 0' } as const
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -133,9 +157,12 @@ export function EarthStory() {
   const stageRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
-  const fillRef = useRef<HTMLDivElement>(null)
+  const orbitRef = useRef<HTMLDivElement>(null)
+  const letterRefs = useRef<(HTMLSpanElement | null)[]>([])
   const [active, setActive] = useState(0)
   const [expanded, setExpanded] = useState(false)
+  const [leaving, setLeaving] = useState(false)   // past the last slide: the card's contents animate out
+  const shown = expanded && !leaving
 
   useEffect(() => {
     const canvas = canvasRef.current, section = sectionRef.current
@@ -176,7 +203,7 @@ export function EarthStory() {
     const wordOf = [...LINE].map((_, i) => LINE.slice(0, i).split(' ').length - 1)
 
     let revealAt = 0            // when the line's word-by-word reveal started
-    let lastActive = -1, lastExpanded = false
+    let lastActive = -1, lastExpanded = false, lastLeaving = false
     let eSmooth = 0             // eased story progress, so the scrub glides to a stop
     let raf = 0
     const t0 = performance.now()
@@ -224,15 +251,9 @@ export function EarthStory() {
         if (Math.abs(video.currentTime - t) > 1 / 48) video.currentTime = t
       }
 
-      // The bar fills across all four slides: one gradient, blue at the left
-      // fading to 0% at the leading edge. Over the last slide the faded end
-      // fills in, so the bar ends solid blue.
-      if (fillRef.current) {
-        const tail = easeInOut(clamp01((e - .75) / .25))
-        fillRef.current.style.background = e <= 0 ? 'transparent'
-          : `linear-gradient(to right, ${BLUE} 0%, rgba(${SEL},${tail}) ${e * 100}%)`
-      }
       if (nextExpanded !== lastExpanded) { lastExpanded = nextExpanded; setExpanded(nextExpanded) }
+      const nextLeaving = pinned >= PINNED_VH - OUT_AT
+      if (nextLeaving !== lastLeaving) { lastLeaving = nextLeaving; setLeaving(nextLeaving) }
       if (nextActive !== lastActive) { lastActive = nextActive; setActive(nextActive) }
 
       // ── Canvas ──
@@ -382,6 +403,91 @@ export function EarthStory() {
     }
   }, [])
 
+  // The title orbit: every letter is placed along the curve each frame while
+  // the line slides (and on resize / font load).
+  const LETTERS = STORIES.flatMap((st, t) => [...st.label.toUpperCase()].map(ch => ({ ch, t })))
+  const orbitPos = useRef({ from: 0, to: 0, at: 0 })   // title index the line is slid to, tweened
+  const orbitIn = useRef({ from: 1, to: 1, at: 0 })    // 0 in place … 1 off to the right, tweened
+  useEffect(() => {
+    const box = orbitRef.current
+    if (!box) return
+    const op = orbitPos.current
+    const now = performance.now()
+    const cur = op.from + (op.to - op.from) * easeInOut(clamp01((now - op.at) / TITLE_MS))
+    orbitPos.current = { from: cur, to: active, at: now }
+    const oi = orbitIn.current
+    const curIn = oi.from + (oi.to - oi.from) * easeInOut(clamp01((now - oi.at) / ENTER_MS))
+    const toIn = !expanded ? 1 : leaving ? -1 : 0   // off right (before) · in place · off left (after the last slide)
+    if (toIn !== oi.to) orbitIn.current = { from: curIn, to: toIn, at: now }
+    const measure = document.createElement('canvas').getContext('2d')!
+    let raf = 0
+    const draw = () => {
+      const W = box.clientWidth, col = (W - 130) / 10, x0 = 20 + col + 10
+      const em = parseFloat(getComputedStyle(box).fontSize)
+      measure.font = `${WGHT[0]} ${em}px ${FONT.bitcount}`
+      const adv = LETTERS.map(l => measure.measureText(l.ch).width)
+      // each title's start along the line, and its length
+      const start: number[] = [], len: number[] = [], at0: number[] = []
+      let u = 0
+      LETTERS.forEach((l, i) => {
+        if (start[l.t] === undefined) { if (l.t > 0) u += TITLE_GAP * em; start[l.t] = u; len[l.t] = 0 }
+        at0[i] = u
+        len[l.t] += adv[i]; u += adv[i]
+      })
+      const { from, to, at } = orbitPos.current
+      const k = easeInOut(clamp01((performance.now() - at) / TITLE_MS))
+      const oin = orbitIn.current, ki = clamp01((performance.now() - oin.at) / ENTER_MS)
+      const off = (oin.from + (oin.to - oin.from) * (Math.abs(oin.to) < Math.abs(oin.from) ? easeOut(ki) : easeIn(ki))) * ENTER_FROM * W
+      const p = from + (to - from) * k
+      const pi = Math.min(STORIES.length - 1, Math.floor(p)), pf = p - pi
+      const lerpAt = (arr: number[]) => arr[pi] + ((arr[pi + 1] ?? arr[pi] + len[pi] + TITLE_GAP * em) - arr[pi]) * pf
+      const P = lerpAt(start)                                     // line offset at the anchor
+      const flat = len[pi] + ((len[pi + 1] ?? len[pi]) - len[pi]) * pf   // the flat stretch: the current title
+      const c = CURVE / W, g = GROW / W
+      LETTERS.forEach((l, i) => {
+        const el = letterRefs.current[i]
+        if (!el) return
+        const s = at0[i] - P + off   // along the line from the anchor
+        let x: number, y: number, th: number, sc = 1, o = 1, w = WGHT[0]
+        if (s < 0) {
+          // passed: bend down-left and fade
+          th = c * s; x = x0 + Math.sin(th) / c; y = (1 - Math.cos(th)) / c
+          o = clamp01(1 + s / (em * 1.2))   // gone within ~a letter of leaving
+        } else if (s < flat) {
+          x = x0 + s; y = 0; th = 0
+        } else {
+          // past the current title: up along the arc, each letter larger
+          const d = s - flat
+          sc = Math.exp(g * d)                       // exponential growth
+          const sigma = (sc - 1) / g                 // screen distance travelled (∫ of the growth)
+          th = -c * sigma
+          x = x0 + flat + Math.sin(-th) / c; y = -(1 - Math.cos(th)) / c
+          const f = clamp01(sigma / (FADE_W * W))
+          o = OP[0] + (OP[1] - OP[0]) * f
+          w = WGHT[0] + (WGHT[1] - WGHT[0]) * Math.min(1, .25 + f)
+        }
+        el.style.transform = `translate(${x}px, ${y}px) rotate(${th}rad) scale(${sc})`
+        el.style.opacity = String(o)
+        el.style.fontWeight = String(Math.round(w))
+      })
+      if (k < 1 || ki < 1) raf = requestAnimationFrame(draw)
+    }
+    draw()
+    const redraw = () => { cancelAnimationFrame(raf); draw() }
+    document.fonts?.ready.then(redraw)
+    window.addEventListener('resize', redraw)
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', redraw) }
+  }, [active, expanded, leaving])
+
+  // A dot jumps to the middle of its slide's stretch of scroll.
+  const goTo = (i: number) => {
+    const section = sectionRef.current
+    if (!section) return
+    const before = PHASES.form + PHASES.orbit + PHASES.leave + PHASES.expand
+    const at = before + (i + .5) / STORIES.length * PHASES.stories
+    animateScrollTo(section.getBoundingClientRect().top + window.scrollY + at / 100 * window.innerHeight, 1200)
+  }
+
   return (
     <section ref={sectionRef} style={{ position: 'relative', height: `${100 + PINNED_VH}vh` }}>
       <div ref={stageRef} style={{ position: 'sticky', top: 0, height: '100vh', overflow: 'hidden' }}>
@@ -395,64 +501,50 @@ export function EarthStory() {
           {/* Shade for legibility: black at the bottom → 0% at the top */}
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, #000 0%, rgba(0,0,0,0) 100%)' }} />
 
-          {/* Progress bar: one continuous bar; number + title swap per slide */}
-          <div style={{
-            position: 'absolute', left: 20, right: 20, top: '47%', height: BAR_H, borderRadius: 6, overflow: 'hidden',
+          {/* Titles: one line of text set on the orbit — flat for the current title, bending up after it */}
+          <div ref={orbitRef} aria-hidden style={{
+            position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none',
             opacity: expanded ? 1 : 0, transition: 'opacity .6s ease',
+            fontFamily: FONT.bitcount, fontSize: TITLE_FS, lineHeight: 1, color: '#fff',
           }}>
-            <div ref={fillRef} style={{ position: 'absolute', inset: 0 }} />
-            {expanded && (
-              // Bitcount's caps sit ~0.05em above the line box's centre; nudge
-              // them down so the ink is centred in the bar.
-              <div style={{ ...BITCOUNT, position: 'relative', paddingLeft: 22, fontSize: BAR_FS, lineHeight: `${BAR_H}px`, color: '#fff', transform: 'translateY(.05em)' }}>
-                <SwapText text={String(active + 1).padStart(2, '0')} />
-                {/* Title lines up with the copy below (a quarter of the way across) */}
-                <span style={{ position: 'absolute', left: '25%', top: 0 }}>
-                  <SwapText text={STORIES[active].label} />
-                </span>
-              </div>
-            )}
+            {LETTERS.map((l, i) => (
+              <span key={i} ref={el => { letterRefs.current[i] = el }} style={{
+                position: 'absolute', left: 0, bottom: `calc(100% - ${TITLE_Y})`, transformOrigin: 'left bottom', whiteSpace: 'pre',
+                fontVariationSettings: '"CRSV" 0, "ELSH" 0, "ELXP" 0', willChange: 'transform',
+              }}>{l.ch}</span>
+            ))}
           </div>
+          <h3 className="sr-only">{STORIES[active].label}</h3>
 
-          {/* Copy — revealed per subsection, aligned with the second segment */}
-          <RevealText key={`b${active}`} text={STORIES[active].body} by="line" delay={.1} ready={expanded} style={{
-            position: 'absolute', left: 'calc(20px + (100% - 40px) / 4)', top: `calc(47% + ${BAR_H + 60}px)`, margin: 0,
-            maxWidth: 'min(600px, calc(75% - 28px))',
-            fontFamily: FONT.sans, fontSize: 21, lineHeight: 1.3, color: '#fff',
+          {/* The rule between titles and copy */}
+          <div style={{
+            position: 'absolute', left: colX(2), right: 20, top: RULE_Y, height: 1, background: 'rgba(255,255,255,.35)',   // starts under the current title
+            transformOrigin: 'left', transform: `scaleX(${shown ? 1 : 0})`, transition: 'transform 1.1s cubic-bezier(.65,0,.25,1)',
           }} />
+
+          {/* Copy — revealed per subsection, from the 7th column */}
+          <RevealText key={`b${active}`} text={STORIES[active].body} by="line" delay={.1} ready={shown} style={{
+            position: 'absolute', left: colX(7), top: `calc(${COPY_Y} + 60px)`, margin: 0,
+            maxWidth: `min(600px, calc(100% - 40px - 6 * (${COL} + 10px)))`,
+            fontFamily: FONT.sans, fontWeight: 400, fontSize: 24, lineHeight: 1.3, color: '#fff',
+          }} />
+
+          {/* Guide — one circle per slide, left edge, vertically centred; the current one white */}
+          <nav aria-label="Stories" style={{
+            position: 'absolute', left: 20, top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: DOT_GAP,
+            opacity: shown ? 1 : 0, pointerEvents: shown ? 'auto' : 'none', transition: 'opacity .6s ease',
+          }}>
+            {STORIES.map((st, i) => (
+              <button key={st.label} type="button" aria-label={st.label} aria-current={active === i ? 'step' : undefined} onClick={() => goTo(i)}
+                className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                style={{
+                  width: DOT, height: DOT, padding: 0, border: 0, borderRadius: '50%', cursor: 'pointer',
+                  background: active === i ? '#fff' : 'rgba(255,255,255,.3)', transition: 'background .4s ease',
+                }} />
+            ))}
+          </nav>
         </div>
       </div>
     </section>
-  )
-}
-
-// ─── Swap text ────────────────────────────────────────────────────────────────
-// Word-staggered swap: on a new `text`, the old words rise and fade out, then
-// the new ones rise and fade in (same keyframes as the orbit cursor hint).
-
-function SwapText({ text }: { text: string }) {
-  const [items, setItems] = useState([{ text, id: 0, out: false }])
-  const idRef = useRef(0)
-  useEffect(() => {
-    setItems(prev => {
-      if (prev[prev.length - 1]?.text === text) return prev
-      return [...prev.filter(i => !i.out).map(i => ({ ...i, out: true })), { text, id: ++idRef.current, out: false }]
-    })
-    const t = setTimeout(() => setItems(prev => prev.filter(i => !i.out)), 1200)
-    return () => clearTimeout(t)
-  }, [text])
-  return (
-    <span style={{ position: 'relative', display: 'inline-block', whiteSpace: 'nowrap' }}>
-      {items.map(it => (
-        <span key={it.id} aria-hidden={it.out} style={it.out ? { position: 'absolute', left: 0, top: 0 } : undefined}>
-          {it.text.split(' ').map((w, wi) => (
-            <span key={wi}>
-              {wi > 0 && ' '}
-              <span className={it.out ? 'neo-hint-out' : 'neo-hint-in'} style={{ display: 'inline-block', animationDelay: `${(it.out ? 0 : .35) + wi * .07}s` }}>{w}</span>
-            </span>
-          ))}
-        </span>
-      ))}
-    </span>
   )
 }
