@@ -146,9 +146,17 @@ export function MissionsPage({ introResetKey }: { introResetKey: number }) {
             <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div style={{ aspectRatio: '279/340', borderRadius: 6, background: CARD_BG[i] ?? '#222', overflow: 'hidden', position: 'relative' }}>
                 {tier.img && <img src={tier.img} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
-                {/* Live ORBI dashboard: 10% in from the left, running off the right edge — ~53% of it shows */}
                 {tier.orbit && <MissionOrbit style={{ position: 'absolute', inset: 0 }} />}
-                {tier.dash && <OrbiDashboard style={{ position: 'absolute', left: '10%', top: '50%', width: '170%', transform: 'translateY(-50%)' }} />}
+                {/* Live ORBI dashboard: 10% in from the left, running off the right edge — ~53% of it shows.
+                    Display only (inert: no clicks, hover or focus), fading out towards the card's right edge. */}
+                {tier.dash && (
+                  <div inert aria-hidden style={{
+                    position: 'absolute', inset: 0, pointerEvents: 'none',
+                    maskImage: 'linear-gradient(to right, #000 55%, rgba(0,0,0,.35) 100%)', WebkitMaskImage: 'linear-gradient(to right, #000 55%, rgba(0,0,0,.35) 100%)',
+                  }}>
+                    <OrbiDashboard style={{ position: 'absolute', left: '10%', top: '50%', width: '170%', transform: 'translateY(-50%)' }} />
+                  </div>
+                )}
                 {tier.video && <LoopVideo src={tier.video} pauseMs={1000} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 30 }}>
