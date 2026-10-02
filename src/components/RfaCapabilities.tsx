@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { FONT } from '../lib/fonts'
+import { A } from '../data/pages'
 import { RevealText } from './RevealText'
 import { DotGrid } from './DotGrid'
 
@@ -15,7 +16,11 @@ import { DotGrid } from './DotGrid'
 //           another, each rule drawing right → left with its title following.
 //           Scroll steps through the items; the selected one opens and fills
 //           solid brand blue, swept in right → left. Clicking a row jumps the
-//           scroll to it. Past its last item, the group clears and the next loads.
+//           scroll to it. Past its last item, the group clears and the next loads;
+//           past the very last item, everything clears (rows bottom first) before
+//           the stage scrolls away — and loads back in scrolling up.
+//           The selected item's two photos appear scattered in the empty space
+//           between the guide circles and the rows (same spots every visit).
 
 // The rows' column: 33% of the width less one grid column (a 10-col grid with
 // 20px margins and 10px gutters) off its left edge — ≈ 340px at 1440.
@@ -40,8 +45,13 @@ const ROW_MAX = 115          // tallest a closed row grows to fill spare height
 const BLUE = '85,166,255'
 const DOTS_OUT_MS = 450      // grid clears this fast when a new group loads…
 const DOTS_IN_S = 1.6        // …then drifts back in over this long
+// Item photos: two per item, scattered in the space left of the rows.
+const PHOTO_W = 'clamp(300px, 28vw, 500px)'   // 4:5 portrait, before each photo's own size factor
+const PHOTO_IN_S = .9, PHOTO_STAGGER = .14
+const PHOTOS_TOP = 'calc(110px + clamp(40px, 4.2vw, 60px) * 2 + 40px)'   // below the group title
+const PHOTOS_H = 'calc(100vh - 110px - clamp(40px, 4.2vw, 60px) * 2 - 80px)'   // the space's height (down to 40px off the bottom)
 
-type Item = { title: string; text?: string }
+type Item = { title: string; text?: string; photos?: string }   // photos: file stem in /assets/access (-1.jpg, -2.jpg)
 const GROUPS: { title: string; items: Item[] }[] = [
   { title: 'Structures\nDelivered', items: [
     { title: 'Payload Fairing', text: 'The aerodynamic composite shell protecting payloads during ascent, engineered for high stiffness, low mass, and resistance to dynamic pressure and acoustic loads.' },
@@ -49,41 +59,55 @@ const GROUPS: { title: string; items: Item[] }[] = [
     { title: 'Redshift Orbital Transfer Vehicle (Third Stage) Main Structure', text: 'The full composite structure of the orbital transfer vehicle responsible for final orbital insertion.' },
   ] },
   { title: 'Engineering', items: [
-    { title: 'Structural Analysis (static & dynamic)', text: 'Finite-element analysis for static loads, buckling, and strength verification; dynamic analysis of vibration, acoustics, and shock; load-case definition for ascent, staging, and orbital operations.' },
-    { title: 'Composite Structural Design', text: 'Laminate design and optimisation for stiffness, mass, and manufacturability; ply-book development and structural substantiation.' },
-    { title: 'Subsystem Integration Engineering', text: 'Mechanical interfaces, separation systems, avionics mounting, and thermal-protection integration; tolerance management and assembly sequencing.' },
+    { title: 'Structural Analysis (static & dynamic)', photos: 'structural-analysis', text: 'Finite-element analysis for static loads, buckling, and strength verification; dynamic analysis of vibration, acoustics, and shock; load-case definition for ascent, staging, and orbital operations.' },
+    { title: 'Composite Structural Design', photos: 'composite-design', text: 'Laminate design and optimisation for stiffness, mass, and manufacturability; ply-book development and structural substantiation.' },
+    { title: 'Subsystem Integration Engineering', photos: 'integration-engineering', text: 'Mechanical interfaces, separation systems, avionics mounting, and thermal-protection integration; tolerance management and assembly sequencing.' },
   ] },
   { title: 'Manufacturing', items: [
-    { title: 'Autoclave Composite Manufacturing', text: 'High-performance carbon-fiber structures cured under pressure and temperature, for primary structures requiring maximum strength and minimal mass.' },
-    { title: 'Out-of-Autoclave (OoA) Composite Manufacturing', text: 'Cost-efficient production using aerospace-grade OoA prepregs, suited to serial manufacturing of launcher components.' },
-    { title: 'Manufacturing Strategy & Industrialization', text: 'Production flows, tooling concepts, and repeatable processes, with quality-assurance systems aligned to aerospace standards.' },
-    { title: 'Jigs & Tooling Design and Fabrication', text: 'Custom assembly jigs, curing tools, and metrology-ready tooling for high dimensional accuracy and repeatability.' },
-    { title: 'Subsystem Integration & Assembly', text: 'Mechanical assembly with metallic interfaces, fasteners, and separation systems; integration of harnesses, brackets, and secondary structures.' },
+    { title: 'Autoclave Composite Manufacturing', photos: 'autoclave', text: 'High-performance carbon-fiber structures cured under pressure and temperature, for primary structures requiring maximum strength and minimal mass.' },
+    { title: 'Out-of-Autoclave (OoA) Composite Manufacturing', photos: 'out-of-autoclave', text: 'Cost-efficient production using aerospace-grade OoA prepregs, suited to serial manufacturing of launcher components.' },
+    { title: 'Manufacturing Strategy & Industrialization', photos: 'industrialization', text: 'Production flows, tooling concepts, and repeatable processes, with quality-assurance systems aligned to aerospace standards.' },
+    { title: 'Jigs & Tooling Design and Fabrication', photos: 'jigs-tooling', text: 'Custom assembly jigs, curing tools, and metrology-ready tooling for high dimensional accuracy and repeatability.' },
+    { title: 'Subsystem Integration & Assembly', photos: 'integration-assembly', text: 'Mechanical assembly with metallic interfaces, fasteners, and separation systems; integration of harnesses, brackets, and secondary structures.' },
   ] },
   { title: 'Testing', items: [
-    { title: 'Large-Structure Mechanical Testing', text: 'Static load tests, proof tests, stiffness characterisation, and full-scale qualification and acceptance testing.' },
-    { title: 'Environmental Testing Support', text: 'Vibration, thermal cycling, and acoustic testing, in collaboration with partner facilities.' },
-    { title: 'Dimensional & NDI Inspection', text: 'Laser-tracker metrology for large assemblies, and ultrasonic non-destructive inspection of composite laminates.' },
+    { title: 'Large-Structure Mechanical Testing', photos: 'mechanical-testing', text: 'Static load tests, proof tests, stiffness characterisation, and full-scale qualification and acceptance testing.' },
+    { title: 'Environmental Testing Support', photos: 'environmental-testing', text: 'Vibration, thermal cycling, and acoustic testing, in collaboration with partner facilities.' },
+    { title: 'Dimensional & NDI Inspection', photos: 'ndi-inspection', text: 'Laser-tracker metrology for large assemblies, and ultrasonic non-destructive inspection of composite laminates.' },
   ] },
 ]
 
 
 // Where each group starts on the timeline.
 const STARTS = GROUPS.reduce<number[]>((acc, g, i) => [...acc, i ? acc[i - 1] + GROUPS[i - 1].items.length * G_STEP : GROUPS_AT], [])
-const TOTAL = STARTS[STARTS.length - 1] + GROUPS[GROUPS.length - 1].items.length * G_STEP + 20
+// Past the last item, the stage holds a little longer: the last group clears
+// (its load-in in reverse) before the stage scrolls away.
+const END = STARTS[STARTS.length - 1] + GROUPS[GROUPS.length - 1].items.length * G_STEP
+const OUT_AT = END + 8, END_PAD = 40
+// The final clear plays the last group's load-in backwards: the open row's text,
+// then rows bottom → top (title, then its rule retracting), then the group title.
+const OUT_EASE = 'cubic-bezier(.32,0,.67,0)'   // the rules' draw-in curve, mirrored
+const TOTAL = END + END_PAD
 
 const clamp01 = (t: number) => Math.max(0, Math.min(1, t))
+// Seeded random, so each photo lands in the same spot every visit.
+const rng = (seed: number) => {
+  // scramble the seed first (nearby seeds would otherwise start out alike)
+  seed = Math.imul(seed ^ 0x9e3779b9, 0x85ebca6b) >>> 0
+  seed = Math.imul(seed ^ (seed >>> 13), 0xc2b2ae35) >>> 0
+  return () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296 }
+}
 const easeIn = (t: number) => t * t * t
 // Gentle ease in, longer ease out (same sweep as the Engineering table).
 const smooth = (t: number) => 1 - (1 - t * t * (3 - 2 * t)) ** 2
 
-type Pos = { pinned: boolean; leaving: boolean; group: number; item: number }
+type Pos = { pinned: boolean; leaving: boolean; group: number; item: number; ending: boolean }
 
 export function RfaCapabilities() {
   const wrapRef = useRef<HTMLElement>(null)
   const wordRefs = useRef<(HTMLSpanElement | null)[]>([])
   const dotsIn = useRef(0)
-  const [pos, setPos] = useState<Pos>({ pinned: false, leaving: false, group: -1, item: 0 })
+  const [pos, setPos] = useState<Pos>({ pinned: false, leaving: false, group: -1, item: 0, ending: false })
   const [vh, setVh] = useState(900)
 
   useEffect(() => {
@@ -108,8 +132,9 @@ export function RfaCapabilities() {
       // Discrete state (what's loaded / selected) — only re-render on change.
       let group = -1
       STARTS.forEach((st, i) => { if (s >= st) group = i })
+      if (s >= OUT_AT) group = -1          // past the last item: everything animates out
       const item = group < 0 ? 0 : Math.max(0, Math.min(GROUPS[group].items.length - 1, Math.floor((s - STARTS[group]) / G_STEP)))
-      const next: Pos = { pinned: s >= -.5, leaving: s > RFA_HOLD, group, item }
+      const next: Pos = { pinned: s >= -.5, leaving: s > RFA_HOLD, group, item, ending: s >= OUT_AT }
       const key = JSON.stringify(next)
       if (key !== prev) { prev = key; setPos(next) }
 
@@ -166,7 +191,9 @@ export function RfaCapabilities() {
         </h2>
 
         {GROUPS.map((g, gi) => (
-          <Group key={g.title} n={gi + 1} {...g} loaded={pos.group === gi} active={pos.group === gi ? pos.item : 0}
+          <Group key={g.title} n={gi + 1} {...g} loaded={pos.group === gi}
+            ending={pos.ending && gi === GROUPS.length - 1}
+            active={pos.group === gi ? pos.item : pos.ending && gi === GROUPS.length - 1 ? g.items.length - 1 : 0}
             vh={vh} onPick={i => goTo(gi, i)} />
         ))}
 
@@ -190,9 +217,14 @@ export function RfaCapabilities() {
   )
 }
 
-function Group({ n, title, items, loaded, active, vh, onPick }: {
-  n: number; title: string; items: Item[]; loaded: boolean; active: number; vh: number; onPick: (i: number) => void
+function Group({ n, title, items, loaded, ending = false, active, vh, onPick }: {
+  n: number; title: string; items: Item[]; loaded: boolean; ending?: boolean; active: number; vh: number; onPick: (i: number) => void
 }) {
+  // The final clear (past the last item): the layout holds while everything
+  // plays out in reverse; see OUT_EASE.
+  const held = !loaded && ending
+  const rowOut = (i: number) => .35 + (items.length - 1 - i) * ROW_STAGGER   // when row i's title leaves
+  const headOut = rowOut(-1) + TEXT_LAG + .2
   // Row sizes share out the height between the nav and the bottom margin, so
   // the longest list still fits — but never less than a row's own text needs
   // (titles run to two or three lines in this column).
@@ -233,7 +265,7 @@ function Group({ n, title, items, loaded, active, vh, onPick }: {
     spare -= openExtra
     return base.map((h, i) => i === a ? h + openExtra : h + Math.min(spare / (items.length - 1), Math.max(0, ROW_MAX - h)))
   }
-  const heights = heightsFor(loaded ? active : -1)
+  const heights = heightsFor(loaded || held ? active : -1)
   useLayoutEffect(() => {
     if (!fit.title.length) return
     const need = Math.max(...items.map((_, a) => items.reduce((sum, _, i) => sum + (i === a ? needOpen(i) : needClosed(i)), 0)))
@@ -281,15 +313,46 @@ function Group({ n, title, items, loaded, active, vh, onPick }: {
     <div style={{ position: 'absolute', inset: 0, pointerEvents: loaded ? 'auto' : 'none' }}>
       {/* Number + title — top left, just below the nav */}
       <div className="flex" style={{ position: 'absolute', left: 20, top: 110, gap: 'clamp(24px, 4.5vw, 64px)' }}>
-        <RevealText as="span" text={String(n).padStart(2, '0')} ready={loaded} ownView={false} delay={loaded ? LOAD_DELAY : 0} style={head} />
-        <RevealText as="h3" text={title} ready={loaded} ownView={false} delay={loaded ? LOAD_DELAY + .08 : 0} style={head} />
+        <RevealText as="span" text={String(n).padStart(2, '0')} ready={loaded} ownView={false} delay={loaded ? LOAD_DELAY : held ? headOut + .08 : 0} reverseOut={held} style={head} />
+        <RevealText as="h3" text={title} ready={loaded} ownView={false} delay={loaded ? LOAD_DELAY + .08 : held ? headOut : 0} reverseOut={held} style={head} />
+      </div>
+
+      {/* The selected item's photos — scattered between the guide circles and the rows, below the title */}
+      <div aria-hidden className="hidden md:block" style={{
+        position: 'absolute', left: 20 + DOT + 50, right: 'calc(20px + 33% - (100% - 30px) / 10 + 30px)', top: PHOTOS_TOP, bottom: 40,
+        pointerEvents: 'none',
+      }}>
+        {items.map((it, i) => it.photos && [1, 2].map(k => {
+          const on = loaded && i === active
+          // Seeded spot per photo: the first towards the left, the second towards the right, each at its own height.
+          // One of the pair is large, the other smaller; the large one never taller than the space.
+          const r = rng(n * 97 + i * 13 + k)
+          const big = rng(n * 31 + i)() < .5 ? 1 : 2
+          const fx = k === 1 ? r() * .2 : .8 + r() * .2, fy = r()
+          const size = k === big ? 1.3 + r() * .25 : .6 + r() * .3
+          const w = `min(${PHOTO_W} * ${size.toFixed(3)}, ${PHOTOS_H} * .8)`
+          const d = (firstLoad.current ? LOAD_DELAY + .3 : .2) + (k - 1) * PHOTO_STAGGER
+          return (
+            <img key={`${i}-${k}`} src={`${A}/access/${it.photos}-${k}.jpg`} alt="" loading="lazy" draggable={false} style={{
+              position: 'absolute', width: `calc(${w})`, aspectRatio: '4 / 5', objectFit: 'cover',
+              left: `calc((100% - ${w}) * ${fx.toFixed(3)})`, top: `calc((100% - ${w} * 1.25) * ${fy.toFixed(3)})`,
+              // in: rises into place, scaling up a touch; out: drops away, scaling down
+              opacity: on ? 1 : 0, transform: on ? 'translateY(0) scale(1)' : 'translateY(80px) scale(.94)',
+              transition: on
+                ? `opacity .6s ${d}s ease, transform ${PHOTO_IN_S}s ${d}s cubic-bezier(.16,1,.3,1)`
+                : 'opacity .4s .05s ease, transform .5s cubic-bezier(.5,0,.75,0)',
+            }} />
+          )
+        }))}
       </div>
 
       {/* Rows — bottom right */}
       <div ref={panelRef} className={PANEL} style={{ position: 'absolute', right: 20, bottom: 40 }}>
         {items.map((it, i) => {
           const on = loaded && i === active
-          const delay = loaded ? LOAD_DELAY + i * ROW_STAGGER : 0
+          const open = (loaded || held) && i === active   // keeps its open layout through the final clear
+          // in: top row first, rule then title; final clear: the reverse
+          const delay = loaded ? LOAD_DELAY + i * ROW_STAGGER : held ? rowOut(i) : 0
           return (
             <button key={it.title} type="button" aria-expanded={on} tabIndex={loaded ? 0 : -1} onClick={() => onPick(i)}
               className="focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white"
@@ -300,19 +363,21 @@ function Group({ n, title, items, loaded, active, vh, onPick }: {
               }}>
               {/* Fill — solid brand blue once swept in */}
               <span ref={el => { fillRefs.current[i] = el }} aria-hidden style={{
-                position: 'absolute', inset: 0, borderRadius: 6, opacity: on ? 1 : 0, transition: on ? 'none' : 'opacity .35s ease',
+                position: 'absolute', inset: 0, borderRadius: 6, opacity: on ? 1 : 0,
+                transition: on ? 'none' : held ? `opacity ${SWEEP_MS / 1000 + .2}s ${delay + TEXT_LAG}s ${OUT_EASE}` : 'opacity .35s ease',
               }} />
               {/* Rule draws right → left */}
               <span aria-hidden style={{
                 position: 'absolute', left: 0, right: 0, bottom: 0, height: 1, background: 'rgba(255,255,255,.3)',
                 transformOrigin: '100% 50%', transform: `scaleX(${loaded ? 1 : 0})`,
-                transition: loaded ? `transform ${RULE_S}s ${delay}s cubic-bezier(.33,1,.68,1)` : 'transform .4s ease-in',
+                transition: loaded ? `transform ${RULE_S}s ${delay}s cubic-bezier(.33,1,.68,1)`
+                  : held ? `transform ${RULE_S}s ${delay + TEXT_LAG}s ${OUT_EASE}` : 'transform .4s ease-in',
               }} />
               <span ref={el => { titleRefs.current[i] = el }} style={{
-                position: 'absolute', left: 20, right: 20, top: on ? PAD_Y + 6 : '50%', transform: on ? 'none' : 'translateY(-50%)',
+                position: 'absolute', left: 20, right: 20, top: open ? PAD_Y + 6 : '50%', transform: open ? 'none' : 'translateY(-50%)',
                 transition: `top ${MOVE}, transform ${MOVE}, color .4s ease`,
               }}>
-                <RevealText as="span" text={it.title} ready={loaded} ownView={false} delay={loaded ? delay + TEXT_LAG : 0} style={{
+                <RevealText as="span" text={it.title} ready={loaded} ownView={false} delay={loaded ? delay + TEXT_LAG : delay} reverseOut={held} style={{
                   fontFamily: FONT.medium, fontWeight: 500, fontSize: `calc(min(33px, 3.9vh) * ${scale})`, lineHeight: 1.05, display: 'block',
                 }} />
               </span>
@@ -321,9 +386,10 @@ function Group({ n, title, items, loaded, active, vh, onPick }: {
                 fontFamily: FONT.sans, fontSize: `calc(min(19.5px, 2.3vh) * ${scale})`, lineHeight: 1.25, color: it.text ? '#fff' : 'rgba(255,255,255,.7)',
                 // Lines reveal one by one when the row opens (after its title on
                 // load); closing, the whole block just fades quickly.
-                opacity: on ? 1 : 0, transition: on ? 'none' : 'opacity .2s ease',
+                // (in the final clear the lines leave one by one instead)
+                opacity: on || (open && held) ? 1 : 0, transition: on || held ? 'none' : 'opacity .2s ease',
               }}>
-                <RevealText by="line" text={it.text ?? 'Details to follow'} ready={on} ownView={false}
+                <RevealText by="line" text={it.text ?? 'Details to follow'} ready={on} ownView={false} reverseOut={held}
                   delay={on ? (firstLoad.current ? delay + TEXT_LAG + .35 : .3) : 0} style={{ margin: 0 }} />
               </span>
             </button>

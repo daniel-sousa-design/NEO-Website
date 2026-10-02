@@ -10,15 +10,17 @@ import { words } from '../lib/text'
 // another animation has finished. `by="line"` reveals whole rendered lines
 // instead (grouped by where the words wrap), a little quicker. `ownView={false}`
 // ignores the text's own visibility and plays as soon as `ready` is true —
-// for text whose parent decides when a whole group plays.
+// for text whose parent decides when a whole group plays. `reverseOut` makes
+// hiding the exact reverse of the reveal (mirrored easing) rather than a quick exit.
 
 const RISE = 14       // px each word travels up
 const STAGGER = .07   // s between consecutive words
 const EASE = 'cubic-bezier(.16,1,.3,1)'
+const EASE_OUT = 'cubic-bezier(.7,0,.84,0)'   // EASE mirrored: for hiding as the exact reverse of the reveal
 const LINE_STAGGER = .09   // s between lines in line mode
 
-export function RevealText({ text, as: Tag = 'p', delay = 0, ready = true, ownView = true, by = 'word', freeWrap = false, style, className }: {
-  text: string; as?: 'p' | 'h2' | 'h3' | 'span'; delay?: number; ready?: boolean; ownView?: boolean; by?: 'word' | 'line'
+export function RevealText({ text, as: Tag = 'p', delay = 0, ready = true, ownView = true, by = 'word', freeWrap = false, reverseOut = false, style, className }: {
+  text: string; as?: 'p' | 'h2' | 'h3' | 'span'; delay?: number; ready?: boolean; ownView?: boolean; by?: 'word' | 'line'; reverseOut?: boolean
   /** Let the text wrap naturally, even if that leaves one word on its last line (the site normally prevents that). */
   freeWrap?: boolean; style?: CSSProperties; className?: string
 }) {
@@ -51,6 +53,7 @@ export function RevealText({ text, as: Tag = 'p', delay = 0, ready = true, ownVi
   }, [inView, ready])
 
   let n = 0
+  const ease = !shown && reverseOut ? EASE_OUT : EASE
   return (
     <Tag ref={ref as never} className={className} style={freeWrap ? { textWrap: 'wrap', ...style } : style}>
       {text.split('\n').map((line, li) => (
@@ -67,7 +70,7 @@ export function RevealText({ text, as: Tag = 'p', delay = 0, ready = true, ownVi
                   display: 'inline-block',
                   opacity: shown ? 1 : 0,
                   transform: shown ? 'translateY(0)' : `translateY(${RISE}px)`,
-                  transition: `opacity ${dur[0]}s ${d}s ${EASE}, transform ${dur[1]}s ${d}s ${EASE}`,
+                  transition: `opacity ${dur[0]}s ${d}s ${ease}, transform ${dur[1]}s ${d}s ${ease}`,
                 }}>{word}</span>
               </span>
             )
