@@ -25,7 +25,8 @@ import { DotGrid } from './DotGrid'
 // The rows' column: 33% of the width less one grid column (a 10-col grid with
 // 20px margins and 10px gutters) off its left edge — ≈ 340px at 1440.
 const DOT = 20, DOT_GAP = 10        // group-guide circles (left edge, centred)
-const PANEL = 'w-full md:w-[calc(33%-(100%-30px)/10)]'
+// Phones: full width between the 20px margins (left + right set, width auto).
+const PANEL = 'left-5 md:left-auto md:w-[calc(33%-(100%-30px)/10)]'
 const FOLLOW = 7                    // scrub easing for the RFA exit (1/s)
 const RFA_FS = '21.6vw'             // "RFA One" size (line height .74)
 // The launcher render above it: long enough that its tail runs off the left
@@ -230,8 +231,8 @@ export function RfaCapabilities() {
         ))}
 
         {/* Guide — one circle per group, left edge, vertically centred; the current one white */}
-        <nav aria-label="Capability groups" style={{
-          position: 'absolute', left: 20, top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: DOT_GAP,
+        <nav aria-label="Capability groups" className="hidden md:flex" style={{   /* not on phones */
+          position: 'absolute', left: 20, top: '50%', transform: 'translateY(-50%)', flexDirection: 'column', gap: DOT_GAP,
           opacity: pos.group >= 0 ? 1 : 0, pointerEvents: pos.group >= 0 ? 'auto' : 'none', transition: 'opacity .6s ease',
         }}>
           {GROUPS.map((g, gi) => (

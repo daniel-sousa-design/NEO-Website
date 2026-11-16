@@ -38,7 +38,7 @@ export function PageHero({ title, headline, sub, introResetKey = 0 }: {
           style={{ fontFamily: FONT.sans, fontWeight: 400, fontSize: 'clamp(3rem,6.25vw,90px)', color: '#fff', lineHeight: 1, letterSpacing: '-.035em', maxWidth: HEADLINE_W, margin: '0 auto' }}
         />
         {sub && <p style={{
-          fontFamily: FONT.mono, fontWeight: 400, fontSize: 12, color: '#fff', lineHeight: 1.3, marginTop: 'clamp(56px, 8vw, 115px)', maxWidth: `calc(${HEADLINE_W} * .4)`, marginBottom: 0, marginLeft: 'auto', marginRight: 'auto',   // 40% of the headline's width, centred under it
+          fontFamily: FONT.mono, fontWeight: 400, fontSize: 12, color: '#fff', lineHeight: 1.3, marginTop: 'clamp(56px, 8vw, 115px)', maxWidth: `max(calc(${HEADLINE_W} * .4), min(100%, 400px))`, marginBottom: 0, marginLeft: 'auto', marginRight: 'auto',   // 40% of the headline's width (but at least 400px, or the full width on phones), centred under it
           opacity: heroActive ? 1 : 0, transform: heroActive ? 'translateY(0)' : 'translateY(10px)',
           transition: 'opacity .6s .55s ease, transform .7s .55s cubic-bezier(.22,1,.36,1)',
         }}>

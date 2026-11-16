@@ -170,7 +170,8 @@ export function EarthStory() {
   const [expanded, setExpanded] = useState(false)
   const [leaving, setLeaving] = useState(false)   // past the last slide: the card's contents animate out
   const shown = expanded && !leaving
-  // Narrow screens: the copy moves from the 7th column to the 2nd, under the rule.
+  // Narrow screens (phones): titles, rule and copy start at the left margin, the
+  // copy runs under the rule, and the slide dots sit in a row, bottom centre.
   const [narrow, setNarrow] = useState(() => window.matchMedia(NARROW_MQ).matches)
   useEffect(() => {
     const mq = window.matchMedia(NARROW_MQ)
@@ -441,7 +442,7 @@ export function EarthStory() {
     const measure = document.createElement('canvas').getContext('2d')!
     let raf = 0
     const draw = () => {
-      const W = box.clientWidth, H = box.clientHeight, col = (W - 130) / 10, x0 = 20 + col + 10
+      const W = box.clientWidth, H = box.clientHeight, col = (W - 130) / 10, x0 = narrow ? 20 : 20 + col + 10
       if (!W || !H) return
       // Fit the size: measure at 100px, then scale to the room the longest title has.
       measure.font = `${WGHT[0]} 100px ${FONT.bitcount}`
@@ -514,7 +515,7 @@ export function EarthStory() {
     const ro = new ResizeObserver(redraw)
     ro.observe(box)
     return () => { cancelAnimationFrame(raf); ro.disconnect() }
-  }, [active, expanded, leaving])
+  }, [active, expanded, leaving, narrow])
 
   // A dot jumps to the middle of its slide's stretch of scroll.
   const goTo = (i: number) => {
@@ -558,7 +559,7 @@ export function EarthStory() {
 
           {/* The rule between titles and copy */}
           <div style={{
-            position: 'absolute', left: colX(2), right: 20, top: RULE_Y, height: 1, background: 'rgba(255,255,255,.35)',   // starts under the current title
+            position: 'absolute', left: narrow ? 20 : colX(2), right: 20, top: RULE_Y, height: 1, background: 'rgba(255,255,255,.35)',   // starts under the current title
             transformOrigin: 'left', transform: `scaleX(${shown ? 1 : 0})`, transition: 'transform 1.1s cubic-bezier(.65,0,.25,1)',
           }} />
 
@@ -566,14 +567,17 @@ export function EarthStory() {
           <RevealText key={`b${active}`} text={STORIES[active].body} by="line" delay={.1} ready={shown} style={{
             position: 'absolute', margin: 0,
             ...(narrow
-              ? { left: colX(2), right: 20, top: `calc(${RULE_Y} + 24px)` }
+              ? { left: 20, right: 20, top: `calc(${RULE_Y} + 24px)` }
               : { left: colX(7), top: `calc(${COPY_Y} + min(60px, 6vh))`, maxWidth: `min(600px, calc(100% - 40px - 6 * (${COL} + 10px)))` }),
             fontFamily: FONT.sans, fontWeight: 400, fontSize: COPY_FS, lineHeight: 1.3, color: '#fff',
           }} />
 
           {/* Guide — one circle per slide, left edge, vertically centred; the current one white */}
           <nav aria-label="Stories" style={{
-            position: 'absolute', left: 20, top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: DOT_GAP,
+            position: 'absolute', display: 'flex', gap: DOT_GAP,
+            ...(narrow
+              ? { left: '50%', bottom: 40, transform: 'translateX(-50%)', flexDirection: 'row' }
+              : { left: 20, top: '50%', transform: 'translateY(-50%)', flexDirection: 'column' }),
             opacity: shown ? 1 : 0, pointerEvents: shown ? 'auto' : 'none', transition: 'opacity .6s ease',
           }}>
             {STORIES.map((st, i) => (

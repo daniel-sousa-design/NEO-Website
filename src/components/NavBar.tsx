@@ -43,8 +43,9 @@ export function NavBar({ title, logoVisible, boxesVisible, interactive }: {
         }}>
           <img src={`${A}/neo-logo.svg`} alt="" style={{ width: 31, height: 'auto', display: 'block' }} />
         </a>
-        <div style={{
-          height: H, padding: '0 22px', borderRadius: RADIUS, background: TILE, display: 'flex', alignItems: 'center',
+        {/* NEO tile: hidden on phones (below 768px) */}
+        <div className="hidden md:flex" style={{
+          height: H, padding: '0 22px', borderRadius: RADIUS, background: TILE, alignItems: 'center',
           fontFamily: FONT.mono, fontSize: 14, color: BLUE, letterSpacing: '.04em', ...appear(logoVisible, .06),
         }}>NEO</div>
       </div>

@@ -73,6 +73,11 @@ const HINT_OFFSET_X = 30   // label's left edge from the pointer: half the 40px 
 const HINT_FOLLOW  = 9     // how fast the label catches up with the pointer (lower = more drag)
 const HINT_WORD_STAGGER = .09  // s between each word of the label entering / leaving
 
+// Card text: the slot's size on desktop, shrinking with the viewport below
+// ~1100px so names still fit the much narrower cards on tablets and phones.
+const cardFont = (px: number) => `min(${px}px, ${(px / 14.4 * 1.3).toFixed(2)}vw)`
+const CARD_PAD_X = 'min(20px, 3.5vw)', CARD_PAD_Y = 'min(14px, 3vw)'
+
 export function OrbitalNav({ currentPage, onNavigate, mode }: {
   currentPage: number; onNavigate: (id: number) => void; mode: 'closing' | 'opening'
 }) {
@@ -368,9 +373,9 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
       <RevealText as="h2" key={centeredIdx} ready={onStage && !titleHeld}
         text={rev ? openingTitle(centeredIdx, currentPage) : closingTitle(centeredIdx)}
         style={{
-          position: 'absolute', left: 40, margin: 0, zIndex: 4, ...(rev ? { bottom: 40 } : { top: 40 }),
-          fontFamily: FONT.sans, fontWeight: 400, fontSize: 36, lineHeight: 1.15, letterSpacing: '-0.72px',
-          color: '#fff', maxWidth: 460, opacity: 1 - Math.min(1, load * 2), transition: 'opacity .2s ease',
+          position: 'absolute', left: 'clamp(20px, 2.8vw, 40px)', margin: 0, zIndex: 4, ...(rev ? { bottom: 'clamp(24px, 2.8vw, 40px)' } : { top: 'clamp(24px, 2.8vw, 40px)' }),
+          fontFamily: FONT.sans, fontWeight: 400, fontSize: 'clamp(22px, 5.6vw, 36px)', lineHeight: 1.15, letterSpacing: '-.02em',
+          color: '#fff', maxWidth: 'min(460px, calc(100% - 40px))', opacity: 1 - Math.min(1, load * 2), transition: 'opacity .2s ease',
         }} />
 
       {/* Orbital carousel */}
@@ -445,8 +450,8 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
                   `opacity .4s ease ${rev && open && load === 0 ? (4 - slot) * 0.06 : 0}s`,
                 ].join(', '),
               }}>
-              <span style={{ position: 'absolute', top: 14, left: 20, fontFamily: FONT.sans, fontSize: s.font, color: `rgb(${g},${g},${g})`, letterSpacing: '-1px', lineHeight: 1.1, opacity: labelOp, transition: `font-size ${arriving ? `${ARRIVE_MS}ms ${ARRIVE_EASE} ${ARRIVE_DELAY}ms` : '.56s cubic-bezier(.34,1.4,.5,1)'}, color .45s ease, opacity .3s ease` }}>{num(idx)}</span>
-              <span style={{ position: 'absolute', bottom: 14, left: 20, fontFamily: FONT.sans, fontSize: s.font, color: `rgb(${g},${g},${g})`, letterSpacing: '-1px', lineHeight: 1.1, whiteSpace: 'nowrap', opacity: labelOp, transition: `font-size ${arriving ? `${ARRIVE_MS}ms ${ARRIVE_EASE} ${ARRIVE_DELAY}ms` : '.56s cubic-bezier(.34,1.4,.5,1)'}, color .45s ease, opacity .3s ease` }}>{page.title}</span>
+              <span style={{ position: 'absolute', top: CARD_PAD_Y, left: CARD_PAD_X, fontFamily: FONT.sans, fontSize: cardFont(s.font), color: `rgb(${g},${g},${g})`, letterSpacing: '-1px', lineHeight: 1.1, opacity: labelOp, transition: `font-size ${arriving ? `${ARRIVE_MS}ms ${ARRIVE_EASE} ${ARRIVE_DELAY}ms` : '.56s cubic-bezier(.34,1.4,.5,1)'}, color .45s ease, opacity .3s ease` }}>{num(idx)}</span>
+              <span style={{ position: 'absolute', bottom: CARD_PAD_Y, left: CARD_PAD_X, right: CARD_PAD_X, fontFamily: FONT.sans, fontSize: cardFont(s.font), color: `rgb(${g},${g},${g})`, letterSpacing: '-1px', lineHeight: 1.1, opacity: labelOp, transition: `font-size ${arriving ? `${ARRIVE_MS}ms ${ARRIVE_EASE} ${ARRIVE_DELAY}ms` : '.56s cubic-bezier(.34,1.4,.5,1)'}, color .45s ease, opacity .3s ease` }}>{page.title}</span>
             </button>
           )
         })}
@@ -457,7 +462,7 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
         <div style={{
           position: 'absolute', bottom: 24, left: 20, right: 20, zIndex: 4,
           opacity: loading ? 0 : 1, transition: 'opacity .4s ease',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12,
         }}>
           <p style={{ margin: 0, fontFamily: FONT.mono, fontSize: 9, letterSpacing: '.36px', textTransform: 'uppercase', color: '#7a7a7a', maxWidth: 188, lineHeight: 1 }}>
             © 2026 NEO. All rights reserved
