@@ -18,7 +18,8 @@ import { TypedText } from './TypedText'
 // Boxes share the height and radius of the old pills.
 
 const H = 46, RADIUS = 7, GAP = 5         // 1.2× the old pills (38 / 6 / 4)
-const BOX_W = 'clamp(228px, 22.8vw, 336px)'
+// On phones it narrows to leave room for the logo tile and the loader on either side.
+const BOX_W = 'clamp(min(228px, 100vw - 160px), 22.8vw, 336px)'
 const TILE = 'rgba(232,232,232,.94)'
 const TILE_HOVER = '#fff'
 const INK = '#1e1e1e'
@@ -65,13 +66,23 @@ function PageStack({ title, visible, interactive }: { title: string; visible: bo
   const closeT = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => () => clearTimeout(closeT.current), [])
+  // Touch: no hover, so tapping the current box toggles the stack; a tap
+  // anywhere outside it closes it again.
+  useEffect(() => {
+    if (!open) return
+    const away = (e: PointerEvent) => { if (!rootRef.current?.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('pointerdown', away)
+    return () => document.removeEventListener('pointerdown', away)
+  }, [open])
   const show = () => { if (!interactive) return; clearTimeout(closeT.current); setOpen(true) }
   const hide = () => { clearTimeout(closeT.current); closeT.current = setTimeout(() => setOpen(false), CLOSE_DELAY_MS) }
   const expanded = open && interactive
+  const touchRef = useRef(false)   // last press was a touch (not a mouse)
 
   const go = (e: MouseEvent, id: number) => {
     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return   // new tab etc.: let the link work
     e.preventDefault()
+    if (id === current && touchRef.current) { if (interactive) setOpen(o => !o); return }
     setOpen(false)
     if (id !== current) navigate(id)
   }
@@ -88,7 +99,12 @@ function PageStack({ title, visible, interactive }: { title: string; visible: bo
 
   return (
     <div ref={rootRef}
-      onMouseEnter={show} onMouseLeave={hide} onFocus={show}
+      // Hover opens it for a mouse only; mobile browsers fake a mouse-enter on
+      // tap, which would fight the tap toggle.
+      onPointerDown={e => { touchRef.current = e.pointerType !== 'mouse' }}
+      onPointerEnter={e => { if (e.pointerType === 'mouse') show() }}
+      onPointerLeave={e => { if (e.pointerType === 'mouse') hide() }}
+      onFocus={() => { if (!touchRef.current) show() }}
       onBlur={e => { if (!rootRef.current?.contains(e.relatedTarget as Node)) hide() }}
       style={{
         position: 'absolute', left: '50%', top: 0, width: BOX_W, transform: 'translateX(-50%)',

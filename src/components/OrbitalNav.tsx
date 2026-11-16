@@ -72,6 +72,7 @@ const HINT_IDLE_MS = 5000  // …and comes back after this long without input
 const HINT_OFFSET_X = 30   // label's left edge from the pointer: half the 40px ring + 10px
 const HINT_FOLLOW  = 9     // how fast the label catches up with the pointer (lower = more drag)
 const HINT_WORD_STAGGER = .09  // s between each word of the label entering / leaving
+const TOUCH_GAIN   = 2.5   // wheel units per px of finger travel (a step ≈ 36px of swipe, a load ≈ 330px)
 
 // Card text: the slot's size on desktop, shrinking with the viewport below
 // ~1100px so names still fit the much narrower cards on tablets and phones.
@@ -104,6 +105,7 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
   const commitAcc = useRef(0)
   const lockRef   = useRef(false)
   const posRef    = useRef({ x: 0, y: 0 })
+  const touchRef  = useRef(false)   // last press was a touch: no ring cursor, and a tap on the centre card loads it
 
   // Cursor hint ("Scroll to orbit" / "Scroll to load"): flashes for
   // HINT_SHOW_MS when the ring appears or changes meaning, and again after
@@ -212,13 +214,14 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
 
   useEffect(() => {
     if (rev && currentPage === 0) return        // nothing behind the first page
-    const onWheel = (e: WheelEvent) => {
+    // One handler for wheel and touch: deltaY > 0 means "scroll down".
+    const handle = (deltaY: number, e: { preventDefault: () => void }) => {
       bumpActivity()
       // Page intro running: swallow the gesture so scrolling up can't open the
       // overlay while scrolling down is locked.
       if (isScrollLocked()) { e.preventDefault(); return }
       // Normalise so d > 0 always means "advance the orbit".
-      const d = rev ? -e.deltaY : e.deltaY
+      const d = rev ? -deltaY : deltaY
       let engaged: boolean
       if (rev) {
         engaged = open || window.scrollY < 8
@@ -289,11 +292,34 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
         }
       }
     }
+    const onWheel = (e: WheelEvent) => handle(e.deltaY, e)
+    // Touch: a swipe drives the same logic as the wheel (finger up = scroll
+    // down), scaled by TOUCH_GAIN. Each new touch is a fresh gesture for the
+    // scroll gate, and where the finger is decides orbit vs load, like the cursor.
+    let ty = 0
+    const onTouchStart = (e: TouchEvent) => {
+      const t = e.touches[0]
+      ty = t.clientY; posRef.current = { x: t.clientX, y: t.clientY }
+      lastWheelRef.current = 0
+    }
+    const onTouchMove = (e: TouchEvent) => {
+      const t = e.touches[0]
+      const dy = ty - t.clientY
+      ty = t.clientY; posRef.current = { x: t.clientX, y: t.clientY }
+      if (dy) handle(dy * TOUCH_GAIN, { preventDefault: () => { if (e.cancelable) e.preventDefault() } })
+    }
     window.addEventListener('wheel', onWheel, { passive: false })
-    return () => window.removeEventListener('wheel', onWheel)
+    window.addEventListener('touchstart', onTouchStart, { passive: true })
+    window.addEventListener('touchmove', onTouchMove, { passive: false })
+    return () => {
+      window.removeEventListener('wheel', onWheel)
+      window.removeEventListener('touchstart', onTouchStart)
+      window.removeEventListener('touchmove', onTouchMove)
+    }
   }, [rev, open, currentPage, step, maxStep, centeredIdx, loading, onNavigate, bumpActivity, startArrival])
 
   const onMove = (e: ReactMouseEvent) => {
+    if (touchRef.current) return       // a tap's emulated mouse move: no ring cursor on touch
     posRef.current = { x: e.clientX, y: e.clientY }
     bumpActivity()
     setCursor({ x: e.clientX, y: e.clientY, on: true, native: !!(e.target as Element).closest('[data-native-cursor]') })
@@ -353,6 +379,7 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
     <section ref={ref}
       data-hides-page-nav={rev ? undefined : ''}
       onMouseMove={onMove}
+      onPointerDown={e => { touchRef.current = e.pointerType !== 'mouse' }}
       onMouseLeave={() => setCursor(c => ({ ...c, on: false }))}
       style={{
         ...(rev
@@ -416,7 +443,14 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
           return (
             <button key={page.id} disabled={loading}
               ref={isCenter ? centerElRef : undefined}
-              onClick={() => clickable && setStep(st => Math.max(0, Math.min(maxStep, st + (slot - 2))))}
+              onClick={() => {
+                if (clickable) setStep(st => Math.max(0, Math.min(maxStep, st + (slot - 2))))
+                // Touch has no hover-and-scroll: tapping the centre card loads that page.
+                else if (isCenter && touchRef.current && !loading && idx !== currentPage) {
+                  setCommitP(1); setLoading(true)
+                  setTimeout(() => onNavigate(idx), 560)
+                }
+              }}
               onMouseLeave={() => { if (tilt?.id === page.id) setTilt(null) }}
               onMouseMove={ev => {
                 if (loading) return
