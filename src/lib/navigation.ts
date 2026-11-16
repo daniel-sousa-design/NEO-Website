@@ -9,3 +9,7 @@ export type Navigation = { current: number; navigate: (id: number) => void }
 export const NavigationContext = createContext<Navigation>({ current: 0, navigate: () => {} })
 
 export const useNavigation = () => useContext(NavigationContext)
+
+/** Fired (on window) to summon the opening orbital nav overlay — the nav bar's
+ *  orbital loader button. OrbitalNav (opening mode) listens. */
+export const OPEN_ORBIT_EVENT = 'neo:open-orbit'

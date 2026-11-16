@@ -22,7 +22,7 @@ const SWEEP_MS = 650         // selected-row fill, left → right (edge + firmin
 const clamp01 = (t: number) => Math.max(0, Math.min(1, t))
 // Gentle ease in, longer ease out: a smoothstep bent so it settles more slowly.
 const smooth = (t: number) => 1 - (1 - t * t * (3 - 2 * t)) ** 2
-const BLUE = '85,166,255'
+const BLUE = '78,129,255'
 
 // Details per discipline: a numbered list (`items`) or a paragraph (`text`).
 // Integration & Testing has neither yet.

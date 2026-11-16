@@ -14,10 +14,10 @@ export const PAGES: Page[] = [
 ]
 
 /** Brand blue. The only brand colour; shades live in index.css (--color-neo-blue-*). */
-export const BLUE = '#55A6FF'
+export const BLUE = '#4E81FF'
 
-/** Primary blue (#55A6FF) as an "r,g,b" triplet for rgba(). */
-export const SEL = '85,166,255'
+/** Primary blue (#4E81FF) as an "r,g,b" triplet for rgba(). */
+export const SEL = '78,129,255'
 
 /** Public asset folder (Figma exports). */
 export const A = `${import.meta.env.BASE_URL}assets`   // respects Vite's `base` (sub-path deploys)

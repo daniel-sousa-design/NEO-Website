@@ -3,6 +3,15 @@ import { A } from '../data/pages'
 import type { IntroPhase } from '../hooks/useIntroAnimation'
 import { PageMenu } from './PageMenu'
 import { GlassBackdrop, type GlassParams } from './GlassBackdrop'
+import { NavBar } from './NavBar'
+
+// Which top nav to show: 'bar' (logo + NEO tiles, centred page box that
+// stacks out the other pages, orbital loader on the right — see NavBar) or
+// 'pill' (the original logo + page pill that expands sideways — see PageMenu).
+const NAV_STYLE: 'bar' | 'pill' = 'bar'
+// The bar sits fixed at the top of the screen from the start, with no glass
+// panel or rule behind it (its slot still holds the hero layout).
+const BAR = NAV_STYLE === 'bar'
 
 // Figma Glass panel values for the pinned bar (see GlassBackdrop for mapping).
 const NAV_GLASS: GlassParams = {
@@ -50,30 +59,34 @@ export function PageNav({ title, introPhase }: { title: string; introPhase: Intr
       <div
         ref={navRef}
         style={{
-          position: isStuck ? 'fixed' : 'relative', top: 0, left: 0, right: 0, zIndex: 40,
+          position: BAR || isStuck ? 'fixed' : 'relative', top: 0, left: 0, right: 0, zIndex: 40,
           display: 'flex', alignItems: 'center',
-          padding: '23px 20px 22px',
-          borderBottom: lineVisible && !isStuck ? '1px solid rgba(244,244,244,.12)' : '1px solid transparent',
+          padding: BAR ? '13px 20px' : '23px 20px 22px',
+          borderBottom: !BAR && lineVisible && !isStuck ? '1px solid rgba(244,244,244,.12)' : '1px solid transparent',
           transform: !lineVisible ? 'translateY(12px)' : hidden ? 'translateY(-110%)' : 'translateY(0)',
           opacity: lineVisible ? 1 : 0,
           transition: 'border-color .35s ease, transform .5s cubic-bezier(.22,1,.36,1), opacity .5s cubic-bezier(.22,1,.36,1)',
         }}
       >
         {/* Glass backdrop — only once pinned over the page */}
-        <GlassBackdrop params={NAV_GLASS} active={isStuck} />
+        <GlassBackdrop params={NAV_GLASS} active={!BAR && isStuck} />
 
-        {/* Logo — pinned left */}
-        <div style={{
-          height: 39, width: 57, flexShrink: 0, position: 'relative', overflow: 'hidden',
-          opacity: logoVisible ? 1 : 0,
-          transform: logoVisible ? 'translateX(0)' : 'translateX(-16px)',
-          transition: 'opacity .5s .08s ease, transform .6s .08s cubic-bezier(.22,1,.36,1)',
-        }}>
-          <img src={`${A}/neo-logo.svg`} alt="NEO" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }} />
-        </div>
+        {NAV_STYLE === 'bar' ? (
+          <NavBar title={title} logoVisible={logoVisible} boxesVisible={pillVisible} interactive={isDone} />
+        ) : (<>
+          {/* Logo — pinned left */}
+          <div style={{
+            height: 39, width: 57, flexShrink: 0, position: 'relative', overflow: 'hidden',
+            opacity: logoVisible ? 1 : 0,
+            transform: logoVisible ? 'translateX(0)' : 'translateX(-16px)',
+            transition: 'opacity .5s .08s ease, transform .6s .08s cubic-bezier(.22,1,.36,1)',
+          }}>
+            <img src={`${A}/neo-logo.svg`} alt="NEO" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }} />
+          </div>
 
-        {/* Page pill — aligned to the hero text's left edge; expands into all pages on hover */}
-        <PageMenu title={title} visible={pillVisible} interactive={isDone} />
+          {/* Page pill — aligned to the hero text's left edge; expands into all pages on hover */}
+          <PageMenu title={title} visible={pillVisible} interactive={isDone} />
+        </>)}
       </div>
     </div>
   )

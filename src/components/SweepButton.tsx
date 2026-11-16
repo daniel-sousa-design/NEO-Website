@@ -7,7 +7,7 @@ import { useSweep } from '../hooks/useSweep'
 // on hover / focus — the site's "gradient to full colour" motion. `forced`
 // holds it filled, e.g. while selected (pass `pressed` too, for a toggle).
 
-export function SweepButton({ children, onClick, rgb = '85,166,255', color, colorOn, forced = false, pressed, style, ...rest }: {
+export function SweepButton({ children, onClick, rgb = '78,129,255', color, colorOn, forced = false, pressed, style, ...rest }: {
   children: ReactNode; onClick?: () => void; rgb?: string; color: string; colorOn: string; forced?: boolean; pressed?: boolean
   style?: CSSProperties; 'aria-disabled'?: boolean
 }) {

@@ -3,6 +3,7 @@ import { PAGES, SEL } from '../data/pages'
 import { FONT } from '../lib/fonts'
 import { lerp, ease } from '../lib/motion'
 import { isScrollLocked } from '../lib/scroll'
+import { OPEN_ORBIT_EVENT } from '../lib/navigation'
 import { RingCursor } from './RingCursor'
 import { RevealText } from './RevealText'
 
@@ -161,6 +162,23 @@ export function OrbitalNav({ currentPage, onNavigate, mode }: {
     return () => io.disconnect()
   }, [rev, startArrival])
   const onStage = rev ? open : arrived
+
+  // Opening mode can also be summoned by the nav bar's orbital loader button,
+  // and dismissed with Escape (as well as by scrolling down).
+  useEffect(() => {
+    if (!rev) return
+    const summon = () => {
+      notchAcc.current = 0; lockRef.current = true; setOpen(true)
+      gateRef.current = true; startArrival()
+      setTimeout(() => { lockRef.current = false }, STEP_LOCK_MS)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !loading) { setOpen(false); setStep(0); setCursor(c => ({ ...c, on: false })) }
+    }
+    window.addEventListener(OPEN_ORBIT_EVENT, summon)
+    window.addEventListener('keydown', onKey)
+    return () => { window.removeEventListener(OPEN_ORBIT_EVENT, summon); window.removeEventListener('keydown', onKey) }
+  }, [rev, loading, startArrival])
 
   // Scroll gate: a gesture that carries the page into the nav (a big fling,
   // trackpad momentum) must not also orbit or load a page. Once reached, the

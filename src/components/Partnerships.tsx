@@ -93,7 +93,7 @@ export function Partnerships() {
                 style={{ borderLeft: `1px solid ${GREY}`, transition: 'left .8s cubic-bezier(.16,1,.3,1)' }}>
                 <div aria-hidden style={{
                   position: 'absolute', inset: 0, left: -1, borderRadius: '6px 0 0 6px',
-                  background: 'linear-gradient(to right, #55a6ff 0%, rgba(85,166,255,.35) 55%, #000 100%)',
+                  background: 'linear-gradient(to right, #4e81ff 0%, rgba(78,129,255,.35) 55%, #000 100%)',
                   opacity: on ? 1 : 0, transition: 'opacity .8s ease',
                 }} />
                 <Content p={p} on={on} />

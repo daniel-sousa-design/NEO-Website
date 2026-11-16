@@ -27,6 +27,14 @@ import { DotGrid } from './DotGrid'
 const DOT = 20, DOT_GAP = 10        // group-guide circles (left edge, centred)
 const PANEL = 'w-full md:w-[calc(33%-(100%-30px)/10)]'
 const FOLLOW = 7                    // scrub easing for the RFA exit (1/s)
+const RFA_FS = '21.6vw'             // "RFA One" size (line height .74)
+// The launcher render above it: long enough that its tail runs off the left
+// edge (engines only — the RFA ONE lettering stays in view) while its nose
+// stops at 70% of the width (≈ 5vw tall).
+const ROCKET_W = '80vw', ROCKET_GAP = 'clamp(20px, 3vw, 48px)'
+const ROCKET_UP = 150      // px, extra lift above "RFA One"
+const ROCKET_RISE = 40     // px it rises from as it fades in
+const ROCKET_LIFT = 160    // px it travels up as it fades out (scrubbed)
 
 // Timeline, in vh of scroll.
 const RFA_HOLD = 40, RFA_OUT = 70
@@ -42,7 +50,7 @@ const SWEEP_MS = 650
 const MOVE = '.6s cubic-bezier(.16,1,.3,1)'
 const PAD_Y = 18             // min space above / below a row's text
 const ROW_MAX = 115          // tallest a closed row grows to fill spare height
-const BLUE = '85,166,255'
+const BLUE = '78,129,255'
 const DOTS_OUT_MS = 450      // grid clears this fast when a new group loads…
 const DOTS_IN_S = 1.6        // …then drifts back in over this long
 // Item photos: two per item, scattered in the space left of the rows.
@@ -51,12 +59,16 @@ const PHOTO_IN_S = .9, PHOTO_STAGGER = .14
 const PHOTOS_TOP = 'calc(110px + clamp(40px, 4.2vw, 60px) * 2 + 40px)'   // below the group title
 const PHOTOS_H = 'calc(100vh - 110px - clamp(40px, 4.2vw, 60px) * 2 - 80px)'   // the space's height (down to 40px off the bottom)
 
-type Item = { title: string; text?: string; photos?: string }   // photos: file stem in /assets/access (-1.jpg, -2.jpg)
+type Item = {
+  title: string; text?: string
+  photos?: string   // file stem in /assets/access (-1.jpg, -2.jpg): two photos scattered in the space
+  cutout?: string   // file stem in /assets/access (.avif): one transparent render, centred in the space, tilting on hover
+}
 const GROUPS: { title: string; items: Item[] }[] = [
   { title: 'Structures\nDelivered', items: [
-    { title: 'Payload Fairing', text: 'The aerodynamic composite shell protecting payloads during ascent, engineered for high stiffness, low mass, and resistance to dynamic pressure and acoustic loads.' },
-    { title: 'Stage-Separation Structures', text: 'Composite flanges and rings enabling reliable separation under precise load paths and tight tolerances.' },
-    { title: 'Redshift Orbital Transfer Vehicle (Third Stage) Main Structure', text: 'The full composite structure of the orbital transfer vehicle responsible for final orbital insertion.' },
+    { title: 'Payload Fairing', cutout: 'payload-fairing', text: 'The aerodynamic composite shell protecting payloads during ascent, engineered for high stiffness, low mass, and resistance to dynamic pressure and acoustic loads.' },
+    { title: 'Stage-Separation Structures', cutout: 'stage-separation', text: 'Composite flanges and rings enabling reliable separation under precise load paths and tight tolerances.' },
+    { title: 'Redshift Orbital Transfer Vehicle (Third Stage) Main Structure', cutout: 'redshift-otv', text: 'The full composite structure of the orbital transfer vehicle responsible for final orbital insertion.' },
   ] },
   { title: 'Engineering', items: [
     { title: 'Structural Analysis (static & dynamic)', photos: 'structural-analysis', text: 'Finite-element analysis for static loads, buckling, and strength verification; dynamic analysis of vibration, acoustics, and shock; load-case definition for ascent, staging, and orbital operations.' },
@@ -106,6 +118,7 @@ type Pos = { pinned: boolean; leaving: boolean; group: number; item: number; end
 export function RfaCapabilities() {
   const wrapRef = useRef<HTMLElement>(null)
   const wordRefs = useRef<(HTMLSpanElement | null)[]>([])
+  const rocketRef = useRef<HTMLImageElement>(null)
   const dotsIn = useRef(0)
   const [pos, setPos] = useState<Pos>({ pinned: false, leaving: false, group: -1, item: 0, ending: false })
   const [vh, setVh] = useState(900)
@@ -152,6 +165,13 @@ export function RfaCapabilities() {
         const order = wordRefs.current.length - 1 - i
         if (w) w.style.transform = `translateY(calc(${easeIn(clamp01(o * 1.5 - order * .5))} * (100% + 60px)))`
       })
+      // …and the launcher lifts away: up and out, ahead of the words.
+      const rk = rocketRef.current
+      if (rk) {
+        const ro = easeIn(clamp01(o * 1.4))
+        rk.style.transform = `translateY(${-ro * ROCKET_LIFT}px)`
+        rk.style.opacity = String(1 - ro)
+      }
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
@@ -178,10 +198,22 @@ export function RfaCapabilities() {
             style={{ fontFamily: FONT.sans, fontSize: 'clamp(16px, 1.65vw, 24px)', lineHeight: 1.3, color: 'rgba(255,255,255,.86)', margin: 0, paddingLeft: 20 }} />
         </div>
 
+        {/* The launcher, lying nose-right above "RFA One": its tail cropped off
+            the left edge, its nose reaching 70% of the width. Rises in when the
+            stage locks; lifts away up and out as "RFA One" goes. */}
+        <div aria-hidden style={{
+          position: 'absolute', right: '30%', bottom: `calc(40px + ${RFA_FS} * .74 + ${ROCKET_GAP} + ${ROCKET_UP}px)`, width: ROCKET_W, pointerEvents: 'none',
+          transform: pos.pinned ? 'translateY(0)' : `translateY(${ROCKET_RISE}px)`, opacity: pos.pinned ? 1 : 0,
+          transition: 'transform 1.8s cubic-bezier(.16,1,.3,1), opacity .9s ease',
+        }}>
+          <img ref={rocketRef} src={`${A}/access/rfa-one.avif`} alt="" draggable={false}
+            style={{ display: 'block', width: '100%', height: 'auto', aspectRatio: '3600 / 228', willChange: 'transform' }} />
+        </div>
+
         {/* RFA One — 40px off the bottom */}
         <h2 aria-label="RFA One" style={{
           position: 'absolute', left: 20, right: 20, bottom: 40, margin: 0, whiteSpace: 'nowrap',
-          fontFamily: FONT.sans, fontWeight: 400, fontSize: '21.6vw', lineHeight: .74, letterSpacing: '-.03em', color: '#f4f4f4',
+          fontFamily: FONT.sans, fontWeight: 400, fontSize: RFA_FS, lineHeight: .74, letterSpacing: '-.03em', color: '#f4f4f4',
         }}>
           {['RFA', 'One'].map((w, i) => (
             <span key={w} ref={el => { wordRefs.current[i] = el }} aria-hidden style={{ display: 'inline-block', marginRight: i ? 0 : '.22em', willChange: 'transform' }}>
@@ -261,7 +293,7 @@ function Group({ n, title, items, loaded, ending = false, active, vh, onPick }: 
   const heightsFor = (a: number) => {
     const base = items.map((_, i) => i === a ? needOpen(i) : needClosed(i))
     let spare = Math.max(0, avail - base.reduce((x, y) => x + y, 0))
-    const openExtra = Math.min(spare, Math.max(0, openMin - base[a]))
+    const openExtra = a < 0 ? 0 : Math.min(spare, Math.max(0, openMin - base[a]))   // a = -1: no row open
     spare -= openExtra
     return base.map((h, i) => i === a ? h + openExtra : h + Math.min(spare / (items.length - 1), Math.max(0, ROW_MAX - h)))
   }
@@ -344,6 +376,24 @@ function Group({ n, title, items, loaded, ending = false, active, vh, onPick }: 
             }} />
           )
         }))}
+        {/* …or its render: one cutout, centred in the space, tilting in 3D under the pointer */}
+        {items.map((it, i) => {
+          if (!it.cutout) return null
+          const on = loaded && i === active
+          const d = firstLoad.current ? LOAD_DELAY + .3 : .2
+          return (
+            <div key={`c${i}`} style={{
+              position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              pointerEvents: 'none',
+              opacity: on ? 1 : 0, transform: on ? 'translateY(0) scale(1)' : 'translateY(80px) scale(.94)',
+              transition: on
+                ? `opacity .6s ${d}s ease, transform ${PHOTO_IN_S}s ${d}s cubic-bezier(.16,1,.3,1)`
+                : 'opacity .4s .05s ease, transform .5s cubic-bezier(.5,0,.75,0)',
+            }}>
+              <TiltImage src={`${A}/access/${it.cutout}.avif`} active={on} />
+            </div>
+          )
+        })}
       </div>
 
       {/* Rows — bottom right */}
@@ -397,5 +447,30 @@ function Group({ n, title, items, loaded, ending = false, active, vh, onPick }: 
         })}
       </div>
     </div>
+  )
+}
+
+// A transparent render that tilts toward the pointer like a card in 3D: up to
+// TILT degrees each way, easing back flat when the pointer leaves.
+const TILT = 14
+function TiltImage({ src, active }: { src: string; active: boolean }) {
+  const ref = useRef<HTMLImageElement>(null)
+  const set = (nx: number, ny: number, lift: number) => {
+    const el = ref.current
+    if (el) el.style.transform = `perspective(1100px) rotateX(${-ny * TILT * .75}deg) rotateY(${nx * TILT}deg) scale(${lift})`
+  }
+  return (
+    <img ref={ref} src={src} alt="" loading="lazy" draggable={false}
+      onPointerMove={e => {
+        if (e.pointerType !== 'mouse') return
+        const b = e.currentTarget.getBoundingClientRect()
+        set(((e.clientX - b.left) / b.width) * 2 - 1, ((e.clientY - b.top) / b.height) * 2 - 1, 1.03)
+      }}
+      onPointerLeave={() => set(0, 0, 1)}
+      style={{
+        display: 'block', maxWidth: '51%', maxHeight: '55%', width: 'auto', height: 'auto', objectFit: 'contain',
+        pointerEvents: active ? 'auto' : 'none', transform: 'perspective(1100px) rotateX(0deg) rotateY(0deg) scale(1)',
+        transition: 'transform .6s cubic-bezier(.16,1,.3,1)', willChange: 'transform',
+      }} />
   )
 }

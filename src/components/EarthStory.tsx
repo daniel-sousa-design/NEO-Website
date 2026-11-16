@@ -54,14 +54,21 @@ const LON0 = 10             // longitude facing the camera at t = 0
 
 const CARD_SCALE = .8, CARD_RADIUS = 12
 const RULE_Y = '35%'       // the rule between titles and copy, from the card's top
-const COPY_Y = '47%'       // the copy sits 60px below this
+const COPY_Y = '47%'       // the copy sits 60px below this (less on short screens)
+const NARROW_MQ = '(max-width: 767px)'
+// Copy size: 24px on a typical desktop, smaller on narrow or short screens so
+// the longest story still fits below the rule.
+const COPY_FS = 'clamp(15px, min(1.67vw + 6px, 2.9vh), 24px)'
 // 10-column grid, 20px margins, 10px gutters: one column's width, and column n's left edge
 const COL = '((100% - 130px) / 10)'
 const colX = (n: number) => `calc(20px + ${n - 1} * (${COL} + 10px))`
 // Title orbit: the titles run as one line of text set on a curve. Up to the end
 // of the current title it's flat; past that it bends up along a circular arc
 // and each letter grows. Passed titles bend down-left off the card.
-const TITLE_FS = 'clamp(4.8rem, 9.9vw, 150px)'
+// Title size: 9.9vw within 48–150px, then shrunk (in JS) so the longest title
+// always fits flat between the 2nd column and the right margin, and stays
+// within a share of the card's height on short, wide screens.
+const TITLE_VW = .099, TITLE_MIN = 48, TITLE_MAX = 150, TITLE_MAX_H = .26
 const TITLE_Y = '32%'      // the line's baseline at the current title, from the card's top
 const TITLE_GAP = 1.3      // em between titles
 const CURVE = .5           // curvature, × 1/card width (higher = bends up sooner)
@@ -163,6 +170,14 @@ export function EarthStory() {
   const [expanded, setExpanded] = useState(false)
   const [leaving, setLeaving] = useState(false)   // past the last slide: the card's contents animate out
   const shown = expanded && !leaving
+  // Narrow screens: the copy moves from the 7th column to the 2nd, under the rule.
+  const [narrow, setNarrow] = useState(() => window.matchMedia(NARROW_MQ).matches)
+  useEffect(() => {
+    const mq = window.matchMedia(NARROW_MQ)
+    const on = () => setNarrow(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
 
   useEffect(() => {
     const canvas = canvasRef.current, section = sectionRef.current
@@ -184,21 +199,25 @@ export function EarthStory() {
     const stars = Array.from({ length: 80 }, () => ({ x: r(), y: r() * .75, s: r() < .15 ? 2 : 1, a: .35 + r() * .6 }))
 
     let W = 0, H = 0, dpr = 1
+    // Per-character advance for the line, measured once the font is in. On
+    // narrow screens the size comes down so the line fits within the margins.
+    let advances: number[] = [], lineFs = LINE_FS
+    const measure = () => {
+      ctx.font = `${LINE_FS}px ${FONT.mono}`
+      const full = [...LINE].reduce((s, ch) => s + ctx.measureText(ch).width + LINE_FS * LINE_TRACK, 0) - LINE_FS * LINE_TRACK
+      lineFs = W > 0 ? Math.max(7, Math.min(LINE_FS, LINE_FS * (W - 40) / full)) : LINE_FS
+      ctx.font = `${lineFs}px ${FONT.mono}`
+      advances = [...LINE].map(ch => ctx.measureText(ch).width + lineFs * LINE_TRACK)
+    }
     const resize = () => {
       dpr = Math.min(2, window.devicePixelRatio || 1)
       W = canvas.clientWidth; H = canvas.clientHeight
       canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr)
+      measure()
     }
     resize()
-    window.addEventListener('resize', resize)
-
-    // Per-character advance for the line, measured once the font is in.
-    let advances: number[] = []
-    const measure = () => {
-      ctx.font = `${LINE_FS}px ${FONT.mono}`
-      advances = [...LINE].map(ch => ctx.measureText(ch).width + LINE_FS * LINE_TRACK)
-    }
-    measure()
+    const ro = new ResizeObserver(resize)
+    ro.observe(canvas)
     document.fonts?.ready.then(measure)
     const wordOf = [...LINE].map((_, i) => LINE.slice(0, i).split(' ').length - 1)
 
@@ -279,17 +298,17 @@ export function EarthStory() {
       }
 
       // Text: a centred line (A) that wraps into a tilted orbit ring (B)
-      const total = advances.reduce((x, y) => x + y, 0) - LINE_FS * LINE_TRACK
+      const total = advances.reduce((x, y) => x + y, 0) - lineFs * LINE_TRACK
       let x0 = cx - total / 2
       const ringRx = R1 * 1.75, ringRy = R1 * .34, tilt = -12 * Math.PI / 180
       const spin = b * Math.PI * 1.6 + (now - t0) / 1000 * .05 * shrink
       const ringChars = LINE.length + 7          // leave a gap in the ring
       const glyphs: { ch: string; x: number; y: number; alpha: number; front: boolean }[] = []
-      ctx.font = `${LINE_FS}px ${FONT.mono}`
+      ctx.font = `${lineFs}px ${FONT.mono}`
       ctx.textBaseline = 'middle'
       for (let i = 0; i < LINE.length; i++) {
         const ch = LINE[i]
-        const lx = x0 + advances[i] / 2 - LINE_FS * LINE_TRACK / 2
+        const lx = x0 + advances[i] / 2 - lineFs * LINE_TRACK / 2
         x0 += advances[i]
         if (ch === ' ') continue
         // word-by-word reveal, same feel as RevealText
@@ -398,7 +417,7 @@ export function EarthStory() {
     }
     raf = requestAnimationFrame(frame)
     return () => {
-      cancelAnimationFrame(raf); window.removeEventListener('resize', resize)
+      cancelAnimationFrame(raf); ro.disconnect()
       stage?.removeEventListener('mousemove', onMove); stage?.removeEventListener('mouseleave', onLeave)
     }
   }, [])
@@ -422,8 +441,18 @@ export function EarthStory() {
     const measure = document.createElement('canvas').getContext('2d')!
     let raf = 0
     const draw = () => {
-      const W = box.clientWidth, col = (W - 130) / 10, x0 = 20 + col + 10
-      const em = parseFloat(getComputedStyle(box).fontSize)
+      const W = box.clientWidth, H = box.clientHeight, col = (W - 130) / 10, x0 = 20 + col + 10
+      if (!W || !H) return
+      // Fit the size: measure at 100px, then scale to the room the longest title has.
+      measure.font = `${WGHT[0]} 100px ${FONT.bitcount}`
+      const widest = Math.max(...STORIES.map(st => measure.measureText(st.label.toUpperCase()).width)) / 100
+      const em = Math.max(16, Math.min(
+        Math.max(TITLE_MIN, Math.min(TITLE_MAX, W * TITLE_VW)),
+        (W - x0 - 20) / widest,
+        H * TITLE_MAX_H,
+      ))
+      box.style.fontSize = `${em}px`
+      const baseY = H * parseFloat(TITLE_Y) / 100    // the line's baseline, from the card's top
       measure.font = `${WGHT[0]} ${em}px ${FONT.bitcount}`
       const adv = LETTERS.map(l => measure.measureText(l.ch).width)
       // each title's start along the line, and its length
@@ -466,7 +495,14 @@ export function EarthStory() {
           o = OP[0] + (OP[1] - OP[0]) * f
           w = WGHT[0] + (WGHT[1] - WGHT[0]) * Math.min(1, .25 + f)
         }
-        el.style.transform = `translate(${x}px, ${y}px) rotate(${th}rad) scale(${sc})`
+        // Letters off the card (far up the curve, or slid off left) or fully
+        // faded are hidden outright: otherwise the browser keeps rasterising
+        // huge scaled glyphs, runs out of tile memory and drops parts of the
+        // letters still on screen.
+        const gone = x > W || x + adv[i] * sc < 0 || baseY + y < 0 || o < .01
+        el.style.visibility = gone ? 'hidden' : 'visible'
+        if (gone) return
+        el.style.transform = `translate(${x}px, ${y}px) rotate(${th}rad) scale(${Math.min(sc, 12)})`
         el.style.opacity = String(o)
         el.style.fontWeight = String(Math.round(w))
       })
@@ -475,8 +511,9 @@ export function EarthStory() {
     draw()
     const redraw = () => { cancelAnimationFrame(raf); draw() }
     document.fonts?.ready.then(redraw)
-    window.addEventListener('resize', redraw)
-    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', redraw) }
+    const ro = new ResizeObserver(redraw)
+    ro.observe(box)
+    return () => { cancelAnimationFrame(raf); ro.disconnect() }
   }, [active, expanded, leaving])
 
   // A dot jumps to the middle of its slide's stretch of scroll.
@@ -505,12 +542,15 @@ export function EarthStory() {
           <div ref={orbitRef} aria-hidden style={{
             position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none',
             opacity: expanded ? 1 : 0, transition: 'opacity .6s ease',
-            fontFamily: FONT.bitcount, fontSize: TITLE_FS, lineHeight: 1, color: '#fff',
+            fontFamily: FONT.bitcount, fontSize: `clamp(${TITLE_MIN}px, ${TITLE_VW * 100}vw, ${TITLE_MAX}px)`, lineHeight: 1, color: '#fff',
           }}>
+            {/* No will-change: a composited layer per letter, scaled up to many
+                times its size along the curve, exhausts GPU tile memory and
+                leaves glyphs half-painted (most visibly on the last title). */}
             {LETTERS.map((l, i) => (
               <span key={i} ref={el => { letterRefs.current[i] = el }} style={{
                 position: 'absolute', left: 0, bottom: `calc(100% - ${TITLE_Y})`, transformOrigin: 'left bottom', whiteSpace: 'pre',
-                fontVariationSettings: '"CRSV" 0, "ELSH" 0, "ELXP" 0', willChange: 'transform',
+                fontVariationSettings: '"CRSV" 0, "ELSH" 0, "ELXP" 0', visibility: 'hidden',
               }}>{l.ch}</span>
             ))}
           </div>
@@ -524,9 +564,11 @@ export function EarthStory() {
 
           {/* Copy — revealed per subsection, from the 7th column */}
           <RevealText key={`b${active}`} text={STORIES[active].body} by="line" delay={.1} ready={shown} style={{
-            position: 'absolute', left: colX(7), top: `calc(${COPY_Y} + 60px)`, margin: 0,
-            maxWidth: `min(600px, calc(100% - 40px - 6 * (${COL} + 10px)))`,
-            fontFamily: FONT.sans, fontWeight: 400, fontSize: 24, lineHeight: 1.3, color: '#fff',
+            position: 'absolute', margin: 0,
+            ...(narrow
+              ? { left: colX(2), right: 20, top: `calc(${RULE_Y} + 24px)` }
+              : { left: colX(7), top: `calc(${COPY_Y} + min(60px, 6vh))`, maxWidth: `min(600px, calc(100% - 40px - 6 * (${COL} + 10px)))` }),
+            fontFamily: FONT.sans, fontWeight: 400, fontSize: COPY_FS, lineHeight: 1.3, color: '#fff',
           }} />
 
           {/* Guide — one circle per slide, left edge, vertically centred; the current one white */}

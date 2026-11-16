@@ -26,7 +26,7 @@ const u = (n: number) => `${(n / W) * 100}cqw`
 const box = (x: number, y: number, w: number, h: number): CSSProperties =>
   ({ position: 'absolute', left: `${(x / W) * 100}%`, top: `${(y / H) * 100}%`, width: `${(w / W) * 100}%`, height: `${(h / H) * 100}%` })
 
-const BLUE = '#55a6ff'
+const BLUE = '#4e81ff'
 const STEP_MS = 3000
 const WAVE_MS = 900, WAVE_STAGGER = 90   // wordmark wave: per letter, delay between letters
 const BITCOUNT = { fontFamily: FONT.bitcount, textTransform: 'uppercase', fontVariationSettings: '"CRSV" 0, "ELSH" 0, "ELXP" 0' } as const
@@ -262,8 +262,8 @@ function ZonePicker({ zone, onPick }: { zone: Zone; onPick: (z: Zone) => void })
               <li key={z.tz} role="option" aria-selected={on}>
                 <button type="button" aria-label={z.name} onClick={() => { onPick(z); setOpen(false) }}
                   className="hover:!bg-[#3a3a3a]"
-                  style={{ ...text, width: '100%', display: 'flex', justifyContent: 'space-between', gap: u(10), padding: `${u(4)} ${u(7)}`, border: 0, borderRadius: u(4), background: 'transparent', cursor: 'pointer', color: on ? '#55a6ff' : '#fff', textAlign: 'left' }}>
-                  <span>{z.label}</span><span style={{ color: on ? '#55a6ff' : '#8a8a8a', textTransform: 'none', letterSpacing: 0, whiteSpace: 'nowrap' }}>{z.short}</span>
+                  style={{ ...text, width: '100%', display: 'flex', justifyContent: 'space-between', gap: u(10), padding: `${u(4)} ${u(7)}`, border: 0, borderRadius: u(4), background: 'transparent', cursor: 'pointer', color: on ? '#4e81ff' : '#fff', textAlign: 'left' }}>
+                  <span>{z.label}</span><span style={{ color: on ? '#4e81ff' : '#8a8a8a', textTransform: 'none', letterSpacing: 0, whiteSpace: 'nowrap' }}>{z.short}</span>
                 </button>
               </li>
             )

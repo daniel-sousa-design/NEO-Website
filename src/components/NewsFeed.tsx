@@ -20,8 +20,8 @@ import { SweepButton } from './SweepButton'
 // Buttons fill with the same sweep on hover: "Read more" to blue (to white on
 // a selected card), "Load more" to blue.
 
-const BLUE = '#55a6ff', GOLD = '#d9ad14', AMBER = '#f0a92e'
-const BLUE_RGB = '85,166,255'
+const BLUE = '#4e81ff', GOLD = '#d9ad14', AMBER = '#f0a92e'
+const BLUE_RGB = '78,129,255'
 const MONO_GREY = { fontFamily: FONT.mono, fontSize: 13, color: '#a7a7a7', letterSpacing: '.02em' } as const
 const SHOWN = 4            // cards visible before "Load more"
 const STEP = 2             // cards each "Load more" adds

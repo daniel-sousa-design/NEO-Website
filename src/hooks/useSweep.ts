@@ -10,7 +10,7 @@ const clamp01 = (t: number) => Math.max(0, Math.min(1, t))
 // Gentle ease in, longer ease out (the same curve as the table fills).
 const smooth = (t: number) => 1 - (1 - t * t * (3 - 2 * t)) ** 2
 
-export function useSweep<T extends HTMLElement>(on: boolean, { rgb = '85,166,255', ms = 520, dir = 'right' as 'right' | 'left' } = {}) {
+export function useSweep<T extends HTMLElement>(on: boolean, { rgb = '78,129,255', ms = 520, dir = 'right' as 'right' | 'left' } = {}) {
   const ref = useRef<T>(null)
   const k = useRef(0)
 
