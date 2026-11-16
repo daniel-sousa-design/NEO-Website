@@ -35,7 +35,7 @@ export function PageHero({ title, headline, sub, introResetKey = 0 }: {
           text={headline}
           active={heroActive}
           noOrphan
-          style={{ fontFamily: FONT.sans, fontWeight: 400, fontSize: 'clamp(3rem,6.25vw,90px)', color: '#fff', lineHeight: 1, letterSpacing: '-1.8px', maxWidth: HEADLINE_W, margin: '0 auto' }}
+          style={{ fontFamily: FONT.sans, fontWeight: 400, fontSize: 'clamp(3rem,6.25vw,90px)', color: '#fff', lineHeight: 1, letterSpacing: '-.035em', maxWidth: HEADLINE_W, margin: '0 auto' }}
         />
         {sub && <p style={{
           fontFamily: FONT.mono, fontWeight: 400, fontSize: 12, color: '#fff', lineHeight: 1.3, marginTop: 'clamp(56px, 8vw, 115px)', maxWidth: `calc(${HEADLINE_W} * .4)`, marginBottom: 0, marginLeft: 'auto', marginRight: 'auto',   // 40% of the headline's width, centred under it
